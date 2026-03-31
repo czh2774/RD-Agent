@@ -13,6 +13,7 @@ from litellm import (
 )
 from litellm.exceptions import BadRequestError, Timeout
 from pydantic import BaseModel
+from pydantic_settings import SettingsConfigDict
 
 from rdagent.log import LogColors
 from rdagent.log import rdagent_logger as logger
@@ -33,10 +34,8 @@ for cls in [BadRequestError, Timeout]:
 
 
 class LiteLLMSettings(LLMSettings):
-
-    class Config:
-        env_prefix = "LITELLM_"
-        """Use `LITELLM_` as prefix for environment variables"""
+    model_config = SettingsConfigDict(env_prefix="LITELLM_")
+    """Use `LITELLM_` as prefix for environment variables"""
 
     # Placeholder for LiteLLM specific settings, so far it's empty
 
