@@ -239,6 +239,12 @@ More details can be found in the [development setup](https://rdagent.readthedocs
   REASONING_THINK_RM=True
   ```
 
+  For containerized or VM-backed runtimes, you can optionally add:
+  ```bash
+  # Rewrite localhost/127.0.0.1 API bases to a container-reachable alias.
+  LITELLM_HOST_LOOPBACK_ALIAS=host.docker.internal
+  ```
+
   You can also use a deprecated backend if you only use `OpenAI API` or `Azure OpenAI` directly. For this deprecated setting and more configuration information, please refer to the [documentation](https://rdagent.readthedocs.io/en/latest/installation_and_configuration.html). 
 
 
@@ -247,6 +253,8 @@ More details can be found in the [development setup](https://rdagent.readthedocs
 
   ```bash
   rdagent health_check
+  rdagent health_check --json
+  rdagent runtime_info
   ```
 
 ### 🚀 Run the Application

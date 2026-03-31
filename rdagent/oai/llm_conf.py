@@ -2,10 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from rdagent.core.conf import ExtendedBaseSettings
+
+
+def rewrite_loopback_url(url: str, host_alias: str) -> str:
+    if not url or not host_alias:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+
+    hostname = (parts.hostname or "").lower()
+    if hostname not in {"127.0.0.1", "0.0.0.0", "localhost", "::1"}:
+        return url
+
+    credentials = ""
+    if parts.username is not None:
+        credentials = parts.username
+        if parts.password is not None:
+            credentials = f"{credentials}:{parts.password}"
+        credentials = f"{credentials}@"
+    port = f":{parts.port}" if parts.port is not None else ""
+    return urlunsplit((parts.scheme, f"{credentials}{host_alias}{port}", parts.path, parts.query, parts.fragment))
 
 
 class LLMSettings(ExtendedBaseSettings):
@@ -60,6 +83,7 @@ class LLMSettings(ExtendedBaseSettings):
     init_chat_cache_seed: int = 42
 
     # Chat configs
+    host_loopback_alias: str = ""
     openai_api_key: str = ""  # TODO: simplify the key design.
     openai_api_base: str = ""
     chat_openai_api_key: str | None = None
@@ -128,6 +152,17 @@ class LLMSettings(ExtendedBaseSettings):
     chat_azure_deepseek_key: str = ""
 
     chat_model_map: dict[str, dict[str, str]] = {}
+
+    @model_validator(mode="after")
+    def normalize_loopback_api_bases(self) -> "LLMSettings":
+        self.openai_api_base = rewrite_loopback_url(self.openai_api_base, self.host_loopback_alias)
+        if self.chat_openai_base_url is not None:
+            self.chat_openai_base_url = rewrite_loopback_url(self.chat_openai_base_url, self.host_loopback_alias)
+        self.embedding_openai_base_url = rewrite_loopback_url(
+            self.embedding_openai_base_url,
+            self.host_loopback_alias,
+        )
+        return self
 
 
 LLM_SETTINGS = LLMSettings()
