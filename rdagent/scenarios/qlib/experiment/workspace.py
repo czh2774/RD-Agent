@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,7 @@ import pandas as pd
 from rdagent.components.coder.model_coder.conf import MODEL_COSTEER_SETTINGS
 from rdagent.core.experiment import FBWorkspace
 from rdagent.log import rdagent_logger as logger
+from rdagent.utils.qlib import get_default_qlib_provider_uri
 from rdagent.utils.env import QlibCondaConf, QlibCondaEnv, QTDockerEnv
 
 
@@ -15,7 +17,11 @@ class QlibFBWorkspace(FBWorkspace):
         super().__init__(*args, **kwargs)
         self.inject_code_from_folder(template_folder_path)
 
-    def execute(self, qlib_config_name: str = "conf.yaml", run_env: dict = {}, *args, **kwargs) -> str:
+    def execute(self, qlib_config_name: str = "conf.yaml", run_env: dict | None = None, *args, **kwargs) -> str:
+        run_env = dict(run_env or {})
+        provider_uri = os.getenv("QLIB_PROVIDER_URI", get_default_qlib_provider_uri())
+        run_env.setdefault("qlib_provider_uri", provider_uri)
+        run_env.setdefault("QLIB_PROVIDER_URI", provider_uri)
         if MODEL_COSTEER_SETTINGS.env_type == "docker":
             qtde = QTDockerEnv()
         elif MODEL_COSTEER_SETTINGS.env_type == "conda":

@@ -9,6 +9,7 @@ from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.qlib.developer.utils import process_factor_data
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
+from rdagent.utils.qlib import get_default_qlib_provider_uri
 
 
 class QlibModelRunner(CachedRunner[QlibModelExperiment]):
@@ -69,6 +70,8 @@ class QlibModelRunner(CachedRunner[QlibModelExperiment]):
             "test_start": mbps.test_start,
             "feature_names": str(list(exp.base_features.keys())),
             "feature_expressions": str(list(exp.base_features.values())),
+            "qlib_provider_uri": get_default_qlib_provider_uri(),
+            "QLIB_PROVIDER_URI": get_default_qlib_provider_uri(),
         }
         if mbps.test_end is not None:
             env_to_use.update({"test_end": mbps.test_end})

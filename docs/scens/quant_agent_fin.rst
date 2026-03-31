@@ -70,9 +70,10 @@ The following environment variables can be set in the `.env` file to customize t
     :no-index:
 
 - **Qlib Configuration**
+    - Containerized or project-managed runtimes can additionally override Qlib bootstrap and data-path behavior through environment variables such as `QLIB_PROVIDER_URI`, `QLIB_CONDA_PIP_INSTALL_TARGET`, and `QLIB_CONDA_PIP_INSTALL_EDITABLE`.
     - The `.yaml` files in both the `model_template` and `factor_template` directories contain some configurations for running the corresponding models or factors within the Qlib framework. Below is an overview of their contents and roles:
         - **General Settings**:
-            - **provider_uri**: Specifies the local Qlib data path, set to `~/.qlib/qlib_data/cn_data`.
+            - **provider_uri**: Specifies the local Qlib data path. By default it falls back to `~/.qlib/qlib_data/cn_data`, but production-style runtimes can override it through `qlib_provider_uri` in template rendering or the `QLIB_PROVIDER_URI` environment variable.
             - **market**: Configured to `csi300`, representing the CSI 300 index constituents.
             - **benchmark**: Set to `SH000300`, used for backtesting evaluation.
         

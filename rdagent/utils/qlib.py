@@ -1,3 +1,5 @@
+import os
+
 from rdagent.core.experiment import FBWorkspace
 from rdagent.utils.env import QlibCondaConf, QlibCondaEnv
 
@@ -186,18 +188,30 @@ ALPHA158 = {
 }
 
 _TFW = FBWorkspace()  # test feature workspace
+DEFAULT_QLIB_PROVIDER_URI = "~/.qlib/qlib_data/cn_data"
 TEST_FEATURE_CODE = """
 import qlib  
 from qlib.data import D  
 
-qlib.init()  
+qlib.init(provider_uri={provider_uri!r})  
 expressions = {experessions}
 df = D.features(["SH600000"], expressions, start_time="2008-01-01", end_time="2020-08-31")
 """
 
 
+def get_default_qlib_provider_uri() -> str:
+    return os.getenv("QLIB_PROVIDER_URI", DEFAULT_QLIB_PROVIDER_URI)
+
+
 def validate_qlib_features(expressions: list[str]) -> bool:
-    _TFW.inject_files(**{"test_fea.py": TEST_FEATURE_CODE.format(experessions=str(expressions))})
+    _TFW.inject_files(
+        **{
+            "test_fea.py": TEST_FEATURE_CODE.format(
+                provider_uri=get_default_qlib_provider_uri(),
+                experessions=str(expressions),
+            )
+        }
+    )
 
     qlib_env = QlibCondaEnv(conf=QlibCondaConf())
     qlib_env.prepare()

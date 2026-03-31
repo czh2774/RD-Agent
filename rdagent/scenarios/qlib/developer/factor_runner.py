@@ -15,6 +15,7 @@ from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.qlib.developer.utils import process_factor_data
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
+from rdagent.utils.qlib import get_default_qlib_provider_uri
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 DIRNAME_local = Path.cwd()
@@ -80,6 +81,8 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
             "test_start": fbps.test_start,
             "feature_names": str(list(exp.base_features.keys())),
             "feature_expressions": str(list(exp.base_features.values())),
+            "qlib_provider_uri": get_default_qlib_provider_uri(),
+            "QLIB_PROVIDER_URI": get_default_qlib_provider_uri(),
         }
         if fbps.test_end is not None:
             env_to_use.update({"test_end": fbps.test_end})

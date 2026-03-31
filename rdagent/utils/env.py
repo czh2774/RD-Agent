@@ -13,6 +13,7 @@ import os
 import pickle
 import re
 import select
+import shlex
 import shutil
 import subprocess
 import time
@@ -830,35 +831,84 @@ class DockerConf(EnvConf):
 
 
 class QlibCondaConf(CondaConf):
+    model_config = SettingsConfigDict(
+        env_prefix="QLIB_CONDA_",
+        env_parse_none_str="None",
+    )
+
     conda_env_name: str = "rdagent4qlib"
     enable_cache: bool = False
     default_entry: str = "qrun conf.yaml"
+    qlib_pip_install_target: str = "git+https://github.com/microsoft/qlib.git@2fb9380b342556ddb50a4b24e4fe8655d548b2b8"
+    qlib_pip_install_editable: bool | None = None
+    qlib_force_reinstall: bool = False
+    bootstrap_packages: str = "catboost xgboost tables torch"
     # extra_volumes: dict = {str(Path("~/.qlib/").expanduser().resolve().absolute()): "/root/.qlib/"}
+
+    def resolved_qlib_install_target(self) -> str:
+        return os.path.expanduser(self.qlib_pip_install_target.strip())
+
+    def should_use_editable_install(self) -> bool:
+        if self.qlib_pip_install_editable is not None:
+            return self.qlib_pip_install_editable
+
+        target = Path(self.resolved_qlib_install_target())
+        return target.exists() and target.is_dir()
+
+    def build_qlib_pip_install_command(self) -> str:
+        target = self.resolved_qlib_install_target()
+        editable_prefix = "-e " if self.should_use_editable_install() else ""
+        return (
+            f"conda run -n {shlex.quote(self.conda_env_name)} "
+            f"pip install {editable_prefix}{shlex.quote(target)}"
+        )
+
+    def bootstrap_package_list(self) -> list[str]:
+        return [package for package in self.bootstrap_packages.split() if package]
 
 
 class QlibCondaEnv(LocalEnv[QlibCondaConf]):
+    def _env_exists(self) -> bool:
+        envs = subprocess.run("conda env list", capture_output=True, text=True, shell=True, check=False)
+        return self.conf.conda_env_name in envs.stdout
+
+    def _qlib_import_available(self) -> bool:
+        probe = subprocess.run(
+            f"conda run -n {shlex.quote(self.conf.conda_env_name)} python -c 'import qlib'",
+            capture_output=True,
+            text=True,
+            shell=True,
+            check=False,
+        )
+        return probe.returncode == 0
+
     def prepare(self) -> None:
         """Prepare the conda environment if not already created."""
         try:
-            envs = subprocess.run("conda env list", capture_output=True, text=True, shell=True)
-            if self.conf.conda_env_name not in envs.stdout:
+            env_exists = self._env_exists()
+            if not env_exists:
                 print(f"[yellow]Conda env '{self.conf.conda_env_name}' not found, creating...[/yellow]")
                 subprocess.check_call(
-                    f"conda create -y -n {self.conf.conda_env_name} python=3.10",
+                    f"conda create -y -n {shlex.quote(self.conf.conda_env_name)} python=3.10",
+                    shell=True,
+                )
+            needs_bootstrap = self.conf.qlib_force_reinstall or not env_exists or not self._qlib_import_available()
+            if needs_bootstrap:
+                subprocess.check_call(
+                    f"conda run -n {shlex.quote(self.conf.conda_env_name)} pip install --upgrade pip cython",
                     shell=True,
                 )
                 subprocess.check_call(
-                    f"conda run -n {self.conf.conda_env_name} pip install --upgrade pip cython",
+                    self.conf.build_qlib_pip_install_command(),
                     shell=True,
                 )
-                subprocess.check_call(
-                    f"conda run -n {self.conf.conda_env_name} pip install git+https://github.com/microsoft/qlib.git@2fb9380b342556ddb50a4b24e4fe8655d548b2b8",
-                    shell=True,
-                )
-                subprocess.check_call(
-                    f"conda run -n {self.conf.conda_env_name} pip install catboost xgboost tables torch",
-                    shell=True,
-                )
+                bootstrap_packages = self.conf.bootstrap_package_list()
+                if bootstrap_packages:
+                    subprocess.check_call(
+                        f"conda run -n {shlex.quote(self.conf.conda_env_name)} pip install "
+                        + " ".join(shlex.quote(package) for package in bootstrap_packages),
+                        shell=True,
+                    )
 
         except Exception as e:
             print(f"[red]Failed to prepare conda env: {e}[/red]")
@@ -1522,7 +1572,11 @@ class QTDockerEnv(DockerEnv):
         qlib_data_path = next(iter(self.conf.extra_volumes.keys()))
         if not (Path(qlib_data_path) / "qlib_data" / "cn_data").exists():
             logger.info("We are downloading!")
-            cmd = "python -m qlib.run.get_data qlib_data --target_dir ~/.qlib/qlib_data/cn_data --region cn --interval 1d --delete_old False"
+            target_dir = os.getenv("QLIB_PROVIDER_URI", "~/.qlib/qlib_data/cn_data")
+            cmd = (
+                "python -m qlib.run.get_data qlib_data "
+                f"--target_dir {shlex.quote(target_dir)} --region cn --interval 1d --delete_old False"
+            )
             self.check_output(entry=cmd)
         else:
             logger.info("Data already exists. Download skipped.")
