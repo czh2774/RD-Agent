@@ -9,6 +9,16 @@ from pydantic import Field, model_validator
 from rdagent.core.conf import ExtendedBaseSettings
 
 
+ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
+SUPPORTED_REASONING_EFFORTS: tuple[ReasoningEffort, ...] = (
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+)
+
+
 def rewrite_loopback_url(url: str, host_alias: str) -> str:
     if not url or not host_alias:
         return url
@@ -33,12 +43,12 @@ def rewrite_loopback_url(url: str, host_alias: str) -> str:
 
 class LLMSettings(ExtendedBaseSettings):
     # backend
-    backend: str = "rdagent.oai.backend.LiteLLMAPIBackend"
+    backend: str = "rdagent.oai.backend.OpenAIResponsesAPIBackend"
 
     chat_model: str = "gpt-4-turbo"
     embedding_model: str = "text-embedding-3-small"
 
-    reasoning_effort: Literal["low", "medium", "high"] | None = None
+    reasoning_effort: ReasoningEffort | None = None
     enable_response_schema: bool = True
     # Whether to enable response_schema in chat models. may not work for models that do not support it.
 
@@ -92,7 +102,7 @@ class LLMSettings(ExtendedBaseSettings):
     chat_azure_api_version: str = ""
     chat_max_tokens: int | None = None
     chat_temperature: float = 0.5
-    chat_stream: bool = True
+    chat_stream: bool = False
     chat_seed: int | None = None
     chat_frequency_penalty: float = 0.0
     chat_presence_penalty: float = 0.0

@@ -836,7 +836,8 @@ class QlibCondaConf(CondaConf):
         env_parse_none_str="None",
     )
 
-    conda_env_name: str = "rdagent4qlib"
+    conda_env_name: str = "rdagent"
+    python_version: str = "3.11"
     enable_cache: bool = False
     default_entry: str = "qrun conf.yaml"
     qlib_pip_install_target: str = "git+https://github.com/microsoft/qlib.git@2fb9380b342556ddb50a4b24e4fe8655d548b2b8"
@@ -889,7 +890,7 @@ class QlibCondaEnv(LocalEnv[QlibCondaConf]):
             if not env_exists:
                 print(f"[yellow]Conda env '{self.conf.conda_env_name}' not found, creating...[/yellow]")
                 subprocess.check_call(
-                    f"conda create -y -n {shlex.quote(self.conf.conda_env_name)} python=3.10",
+                    f"conda create -y -n {shlex.quote(self.conf.conda_env_name)} python={shlex.quote(self.conf.python_version)}",
                     shell=True,
                 )
             needs_bootstrap = self.conf.qlib_force_reinstall or not env_exists or not self._qlib_import_available()

@@ -167,7 +167,7 @@ def env_check(emit_logs: bool = True) -> dict[str, Any]:
         if emit_logs:
             logger.warning(
                 f"We did not find BACKEND in your configuration, please add it to your .env file. "
-                f"You can run a command like this: `dotenv set BACKEND rdagent.oai.backend.LiteLLMAPIBackend`"
+                f"You can run a command like this: `dotenv set BACKEND rdagent.oai.backend.OpenAIResponsesAPIBackend`"
             )
 
     if "DEEPSEEK_API_KEY" in os.environ:

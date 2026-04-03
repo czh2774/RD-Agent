@@ -91,7 +91,7 @@ class LLMHardeningTest(TestCase):
             os.environ,
             {
                 "BACKEND": "rdagent.oai.backend.LiteLLMAPIBackend",
-                "CONDA_DEFAULT_ENV": "rdagent4qlib",
+                "CONDA_DEFAULT_ENV": "rdagent",
                 "MODEL_CoSTEER_ENV_TYPE": "conda",
                 "CHAT_MODEL": "gpt-5.4",
                 "EMBEDDING_MODEL": "text-embedding-3-large",
