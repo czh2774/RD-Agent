@@ -5,6 +5,7 @@ from unittest import TestCase, main
 from unittest.mock import patch
 
 from rdagent.app.utils import health_check as health_check_module
+from rdagent.oai.backend.deprec import DeprecBackend
 from rdagent.oai.llm_conf import LLMSettings, rewrite_loopback_url
 
 
@@ -108,6 +109,14 @@ class LLMHardeningTest(TestCase):
         self.assertEqual(payload["chat_api_base"], "http://host.docker.internal:58008/v1")
         self.assertEqual(payload["embedding_api_base"], "http://host.docker.internal:58009/v1")
         self.assertEqual(payload["qlib_provider_uri"], "/workspace/app020/var/qlib_data/cn_data")
+
+    def test_deprec_backend_encoder_supports_gpt_5_dot_versions(self) -> None:
+        backend = object.__new__(DeprecBackend)
+        backend.chat_model = "gpt-5.4"
+
+        encoder = backend._get_encoder()
+
+        self.assertEqual(encoder.name, "o200k_base")
 
 
 if __name__ == "__main__":

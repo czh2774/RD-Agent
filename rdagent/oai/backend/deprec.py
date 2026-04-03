@@ -250,17 +250,39 @@ class DeprecBackend(APIBackend):
             """
             return model.replace("_", "-")
 
+        def _tokenizer_patch(model: str) -> str:
+            """
+            Normalize OpenAI model ids into prefixes tiktoken already understands.
+
+            Our runtime uses `gpt-5.4`, while tiktoken recognizes the `gpt-5-`
+            family prefix. This patch keeps token estimation aligned with the
+            real model contract without changing the actual request model id.
+            """
+            normalized = _azure_patch(model)
+            if normalized.startswith("gpt-5."):
+                return normalized.replace("gpt-5.", "gpt-5-", 1)
+            return normalized
+
         model = self.chat_model
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
             logger.warning(f"Failed to get encoder. Trying to patch the model name")
-            for patch_func in [_azure_patch]:
+            last_error: KeyError | None = None
+            for patch_func in [_azure_patch, _tokenizer_patch]:
                 try:
                     encoding = tiktoken.encoding_for_model(patch_func(model))
+                    break
                 except KeyError:
                     logger.error(f"Failed to get encoder even after patching with {patch_func.__name__}")
-                    raise
+                    last_error = KeyError(model)
+            else:
+                if last_error is not None:
+                    raise last_error
+                raise KeyError(
+                    f"Could not automatically map {model} to a tokeniser. "
+                    "Please use `tiktoken.get_encoding` to explicitly get the tokeniser you expect."
+                )
         return encoding
 
     def supports_response_schema(self) -> bool:
