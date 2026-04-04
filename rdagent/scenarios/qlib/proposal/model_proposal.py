@@ -2,7 +2,11 @@ import json
 from typing import List, Tuple
 
 from rdagent.components.coder.model_coder.model import ModelExperiment, ModelTask
-from rdagent.components.proposal import ModelHypothesis2Experiment, ModelHypothesisGen
+from rdagent.components.proposal import (
+    ModelHypothesis2Experiment,
+    ModelHypothesisGen,
+    ensure_hypothesis_response_dict,
+)
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
@@ -50,7 +54,7 @@ class QlibModelHypothesisGen(ModelHypothesisGen):
         context_dict = {
             "hypothesis_and_feedback": hypothesis_and_feedback,
             "last_hypothesis_and_feedback": last_hypothesis_and_feedback,
-            "SOTA_hypothesis_and_feedback": sota_hypothesis_and_feedback,
+            "sota_hypothesis_and_feedback": sota_hypothesis_and_feedback,
             "RAG": "1. In Quantitative Finance, market data could be time-series, and GRU model/LSTM model are suitable for them. Do not generate GNN model as for now.\n2. The training data consists of less than 1 million samples for the training set and approximately 250,000 samples for the validation set. Please design the hyperparameters accordingly and control the model size. This has a significant impact on the training results. If you believe that the previous model itself is good but the training hyperparameters or model hyperparameters are not optimal, you can return the same model and adjust these parameters instead.",
             "hypothesis_output_format": T("scenarios.qlib.prompts:hypothesis_output_format").r(),
             "hypothesis_specification": T("scenarios.qlib.prompts:model_hypothesis_specification").r(),
@@ -58,7 +62,7 @@ class QlibModelHypothesisGen(ModelHypothesisGen):
         return context_dict, True
 
     def convert_response(self, response: str) -> Hypothesis:
-        response_dict = json.loads(response)
+        response_dict = ensure_hypothesis_response_dict(json.loads(response))
         hypothesis = QlibModelHypothesis(
             hypothesis=response_dict.get("hypothesis"),
             reason=response_dict.get("reason"),
@@ -125,7 +129,7 @@ class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
             "scenario": scenario,
             "hypothesis_and_feedback": hypothesis_and_feedback,
             "last_hypothesis_and_feedback": last_hypothesis_and_feedback,
-            "SOTA_hypothesis_and_feedback": sota_hypothesis_and_feedback,
+            "sota_hypothesis_and_feedback": sota_hypothesis_and_feedback,
             "experiment_output_format": experiment_output_format,
             "target_list": [],
             "RAG": "Note, the training data consists of less than 1 million samples for the training set and approximately 250,000 samples for the validation set. Please design the hyperparameters accordingly and control the model size. This has a significant impact on the training results. If you believe that the previous model itself is good but the training hyperparameters or model hyperparameters are not optimal, you can return the same model and adjust these parameters instead.",

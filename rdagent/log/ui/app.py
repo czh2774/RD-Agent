@@ -25,7 +25,6 @@ from rdagent.log.base import Message
 from rdagent.log.storage import FileStorage
 from rdagent.log.ui.qlib_report_figure import report_figure
 from rdagent.scenarios.general_model.scenario import GeneralModelScenario
-from rdagent.scenarios.kaggle.experiment.scenario import KGScenario
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorScenario
 from rdagent.scenarios.qlib.experiment.factor_from_report_experiment import (
     QlibFactorFromReportScenario,
@@ -35,6 +34,11 @@ from rdagent.scenarios.qlib.experiment.model_experiment import (
     QlibModelScenario,
 )
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
+
+try:
+    from rdagent.scenarios.kaggle.experiment.scenario import KGScenario
+except ImportError:
+    KGScenario = None
 
 st.set_page_config(layout="wide", page_title="RD-Agent", page_icon="🎓", initial_sidebar_state="expanded")
 
@@ -60,12 +64,16 @@ QLIB_SELECTED_METRICS = [
     "1day.excess_return_with_cost.max_drawdown",
 ]
 
-SIMILAR_SCENARIOS = (
-    QlibModelScenario,
-    QlibFactorScenario,
-    QlibFactorFromReportScenario,
-    QlibQuantScenario,
-    KGScenario,
+SIMILAR_SCENARIOS = tuple(
+    scenario_cls
+    for scenario_cls in (
+        QlibModelScenario,
+        QlibFactorScenario,
+        QlibFactorFromReportScenario,
+        QlibQuantScenario,
+        KGScenario,
+    )
+    if scenario_cls is not None
 )
 
 
@@ -621,10 +629,7 @@ def feedback_window():
         with st.container(border=True):
             st.subheader("Feedback📝", divider="orange", anchor="_feedback")
 
-            if state.lround > 0 and isinstance(
-                state.scenario,
-                (QlibModelScenario, QlibFactorScenario, QlibFactorFromReportScenario, QlibQuantScenario, KGScenario),
-            ):
+            if state.lround > 0:
                 if fbr := state.msgs[round]["runner result"]:
                     try:
                         st.write("workspace")
@@ -649,7 +654,7 @@ def feedback_window():
 - **Decision**: {h.decision}
 - **Reason**: {h.reason}""")
 
-            if isinstance(state.scenario, KGScenario):
+            if KGScenario is not None and isinstance(state.scenario, KGScenario):
                 if fbe := state.msgs[round]["runner result"]:
                     submission_path = fbe[0].content.experiment_workspace.workspace_path / "submission.csv"
                     st.markdown(

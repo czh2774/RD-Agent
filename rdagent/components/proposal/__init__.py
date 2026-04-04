@@ -1,5 +1,8 @@
 from abc import abstractmethod
-from typing import Tuple
+import json
+from typing import Any, Tuple
+
+from pydantic import BaseModel, ConfigDict
 
 from rdagent.core.experiment import Experiment
 from rdagent.core.proposal import (
@@ -15,6 +18,60 @@ from rdagent.utils.agent.tpl import T
 from rdagent.utils.workflow import wait_retry
 
 
+class HypothesisResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hypothesis: str
+    reason: str
+    concise_reason: str | None = None
+    concise_observation: str | None = None
+    concise_justification: str | None = None
+    concise_knowledge: str | None = None
+
+
+class QuantHypothesisResponse(HypothesisResponse):
+    action: str
+
+
+def ensure_hypothesis_response_dict(
+    payload: dict[str, Any],
+    *,
+    require_action: bool = False,
+    default_action: str | None = None,
+) -> dict[str, Any]:
+    normalized_payload = dict(payload)
+
+    primary_hypothesis = normalized_payload.get("primary_hypothesis")
+    if isinstance(primary_hypothesis, dict):
+        hypothesis_statement = primary_hypothesis.get("statement")
+        hypothesis_reason = primary_hypothesis.get("why_this_first")
+        if hypothesis_statement is not None:
+            normalized_payload["hypothesis"] = hypothesis_statement
+        if hypothesis_reason is not None:
+            normalized_payload["reason"] = hypothesis_reason
+
+    if require_action and not normalized_payload.get("action") and default_action:
+        normalized_payload["action"] = default_action
+
+    allowed_keys = {
+        "hypothesis",
+        "reason",
+        "concise_reason",
+        "concise_observation",
+        "concise_justification",
+        "concise_knowledge",
+    }
+    if require_action:
+        allowed_keys.add("action")
+
+    filtered_payload = {
+        key: value for key, value in normalized_payload.items() if key in allowed_keys
+    }
+
+    response_type = QuantHypothesisResponse if require_action else HypothesisResponse
+    return response_type.model_validate(filtered_payload).model_dump()
+
+
 class LLMHypothesisGen(HypothesisGen):
     def __init__(self, scen: Scenario):
         super().__init__(scen)
@@ -25,6 +82,10 @@ class LLMHypothesisGen(HypothesisGen):
 
     @abstractmethod
     def convert_response(self, response: str) -> Hypothesis: ...
+
+    def hypothesis_response_type(self, context_dict: dict[str, Any]) -> type[BaseModel]:
+        require_action = '"action"' in str(context_dict.get("hypothesis_output_format", ""))
+        return QuantHypothesisResponse if require_action else HypothesisResponse
 
     def gen(
         self,
@@ -56,8 +117,14 @@ class LLMHypothesisGen(HypothesisGen):
             RAG=context_dict["RAG"],
         )
 
-        resp = APIBackend().build_messages_and_create_chat_completion(
-            user_prompt, system_prompt, json_mode=json_flag, json_target_type=dict[str, str]
+        api = APIBackend()
+        response_type = self.hypothesis_response_type(context_dict)
+        resp = api.build_messages_and_create_chat_completion(
+            user_prompt,
+            system_prompt,
+            json_mode=json_flag,
+            response_format=response_type if api.supports_response_schema() else None,
+            json_target_type=None if api.supports_response_schema() else response_type,
         )
 
         hypothesis = self.convert_response(resp)
