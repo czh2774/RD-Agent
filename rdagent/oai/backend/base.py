@@ -34,6 +34,31 @@ except ImportError:
     openai_imported = False
 
 
+def strip_leading_reasoning_content(content: str) -> tuple[str, bool]:
+    stripped = content.lstrip()
+    changed = stripped != content
+
+    while True:
+        previous = stripped
+
+        think_match = re.match(r"<think\b[^>]*>.*?</think>\s*", stripped, re.DOTALL)
+        if think_match:
+            stripped = stripped[think_match.end() :].lstrip()
+            changed = True
+            continue
+
+        closing_match = re.match(r"</think>\s*", stripped)
+        if closing_match:
+            stripped = stripped[closing_match.end() :].lstrip()
+            changed = True
+            continue
+
+        if stripped == previous:
+            break
+
+    return stripped, changed
+
+
 class JSONParser:
     """JSON parser supporting multiple strategies"""
 
@@ -48,7 +73,7 @@ class JSONParser:
 
     def parse(self, content: str) -> str:
         """Parse JSON content, automatically trying multiple strategies"""
-        original_content = content
+        original_content, _ = strip_leading_reasoning_content(content)
 
         for strategy in self.strategies:
             try:
@@ -690,17 +715,7 @@ class APIBackend(ABC):
 
         # 2) refine the response and return
         if LLM_SETTINGS.reasoning_think_rm:
-            # Only remove <think>...</think> if it appears at the beginning of the response
-            # Strategy 1: Try to match complete <think>...</think> pattern at the start
-            match = re.match(r"\s*<think>(.*?)</think>(.*)", all_response, re.DOTALL)
-            if match:
-                _, all_response = match.groups()
-            else:
-                # Strategy 2: If no complete match, try to match only </think> at the start
-                match = re.match(r"\s*</think>(.*)", all_response, re.DOTALL)
-                if match:
-                    all_response = match.group(1)
-                # If no match at all, keep original content
+            all_response, _ = strip_leading_reasoning_content(all_response)
 
         # 3) format checking
         if response_format == {"type": "json_object"} or json_target_type:

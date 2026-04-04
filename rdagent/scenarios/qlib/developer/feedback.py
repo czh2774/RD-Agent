@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 import pandas as pd
 
@@ -19,6 +19,101 @@ IMPORTANT_METRICS = [
     "1day.excess_return_with_cost.annualized_return",
     "1day.excess_return_with_cost.max_drawdown",
 ]
+
+
+def _extract_metric_value(result: dict[str, Any] | None, metric_name: str) -> float | None:
+    if not result:
+        return None
+    frame = pd.DataFrame(result)
+    if metric_name not in frame.index or "0" not in frame.columns:
+        return None
+    value = frame.at[metric_name, "0"]
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def infer_replace_best_result(
+    current_result: dict[str, Any] | None,
+    sota_result: dict[str, Any] | None,
+) -> bool:
+    metric_name = "1day.excess_return_with_cost.annualized_return"
+    current_metric = _extract_metric_value(current_result, metric_name)
+    sota_metric = _extract_metric_value(sota_result, metric_name)
+    if current_metric is None:
+        return False
+    if sota_metric is None:
+        return True
+    return current_metric > sota_metric
+
+
+def normalize_feedback_response(
+    payload: dict[str, Any],
+    *,
+    current_result: dict[str, Any] | None,
+    sota_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    observations = payload.get("Observations")
+    if not observations:
+        observation_parts: list[str] = []
+        sota_comparison = payload.get("sota_comparison")
+        if isinstance(sota_comparison, dict) and sota_comparison.get("summary"):
+            observation_parts.append(str(sota_comparison["summary"]))
+        limitations = None
+        hypothesis_assessment = payload.get("hypothesis_assessment")
+        if isinstance(hypothesis_assessment, dict):
+            limitations = hypothesis_assessment.get("limitations")
+        if isinstance(limitations, list) and limitations:
+            observation_parts.append("Limitations: " + "; ".join(str(item) for item in limitations))
+        observations = " ".join(observation_parts) or "No observations provided"
+
+    hypothesis_evaluation = payload.get("Feedback for Hypothesis")
+    if not hypothesis_evaluation:
+        hypothesis_assessment = payload.get("hypothesis_assessment")
+        if isinstance(hypothesis_assessment, dict) and hypothesis_assessment:
+            hypothesis_evaluation = "; ".join(
+                f"{key}={value}" for key, value in hypothesis_assessment.items()
+            )
+        else:
+            hypothesis_evaluation = "No feedback provided"
+
+    new_hypothesis = payload.get("New Hypothesis")
+    if not new_hypothesis:
+        hypothesis_assessment = payload.get("hypothesis_assessment")
+        limitations = (
+            hypothesis_assessment.get("limitations")
+            if isinstance(hypothesis_assessment, dict)
+            else None
+        )
+        if isinstance(limitations, list) and limitations:
+            new_hypothesis = "Address the current limitations: " + "; ".join(
+                str(item) for item in limitations
+            )
+        else:
+            new_hypothesis = "No new hypothesis provided"
+
+    reasoning = payload.get("Reasoning")
+    if not reasoning:
+        conclusion = payload.get("conclusion")
+        if isinstance(conclusion, dict) and conclusion:
+            reasoning = "; ".join(f"{key}={value}" for key, value in conclusion.items())
+        else:
+            reasoning = "No reasoning provided"
+
+    decision_value = payload.get("Decision", payload.get("Replace Best Result"))
+    if decision_value is None:
+        decision = infer_replace_best_result(current_result, sota_result)
+    else:
+        decision = convert2bool(decision_value)
+
+    return {
+        "Observations": str(observations),
+        "Feedback for Hypothesis": str(hypothesis_evaluation),
+        "New Hypothesis": str(new_hypothesis),
+        "Reasoning": str(reasoning),
+        "Decision": decision,
+    }
 
 
 def process_results(current_result, sota_result):
@@ -100,21 +195,18 @@ class QlibFactorExperiment2Feedback(Experiment2Feedback):
         )
 
         # Parse the JSON response to extract the feedback
-        response_json = json.loads(response)
-
-        # Extract fields from JSON response
-        observations = response_json.get("Observations", "No observations provided")
-        hypothesis_evaluation = response_json.get("Feedback for Hypothesis", "No feedback provided")
-        new_hypothesis = response_json.get("New Hypothesis", "No new hypothesis provided")
-        reason = response_json.get("Reasoning", "No reasoning provided")
-        decision = convert2bool(response_json.get("Replace Best Result", "no"))
+        response_json = normalize_feedback_response(
+            json.loads(response),
+            current_result=current_result,
+            sota_result=sota_result,
+        )
 
         return HypothesisFeedback(
-            observations=observations,
-            hypothesis_evaluation=hypothesis_evaluation,
-            new_hypothesis=new_hypothesis,
-            reason=reason,
-            decision=decision,
+            observations=response_json["Observations"],
+            hypothesis_evaluation=response_json["Feedback for Hypothesis"],
+            new_hypothesis=response_json["New Hypothesis"],
+            reason=response_json["Reasoning"],
+            decision=response_json["Decision"],
         )
 
 

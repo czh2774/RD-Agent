@@ -1,8 +1,13 @@
 import json
-from typing import List, Tuple
+import re
+from typing import Any, List, Tuple
 
 from rdagent.components.coder.factor_coder.factor import FactorExperiment, FactorTask
-from rdagent.components.proposal import FactorHypothesis2Experiment, FactorHypothesisGen
+from rdagent.components.proposal import (
+    FactorHypothesis2Experiment,
+    FactorHypothesisGen,
+    ensure_hypothesis_response_dict,
+)
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
@@ -10,6 +15,45 @@ from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils.agent.tpl import T
 
 QlibFactorHypothesis = Hypothesis
+
+_FACTOR_SETUP_LANGUAGE_PATTERNS = (
+    re.compile(r"\bsetup\b", re.IGNORECASE),
+    re.compile(r"\bconfiguration\b", re.IGNORECASE),
+    re.compile(r"\bcalibration\b", re.IGNORECASE),
+    re.compile(r"\benvironment(?:al)?\b", re.IGNORECASE),
+    re.compile(r"\bdebug(?:ging)?\b", re.IGNORECASE),
+)
+_FACTOR_GENERIC_SCREENING_PATTERNS = (
+    re.compile(r"\bfirst-?order controllable factors?\b", re.IGNORECASE),
+    re.compile(r"\beasiest-to-change variables?\b", re.IGNORECASE),
+    re.compile(r"\bscreen(?:ing)?\b", re.IGNORECASE),
+    re.compile(r"\bmain effects?\b", re.IGNORECASE),
+)
+_FACTOR_MARKET_DATA_HINT_PATTERNS = (
+    re.compile(r"\b(close|open|high|low|volume|turnover|return|momentum|reversal|volatility|price)\b", re.IGNORECASE),
+    re.compile(r"\b(alpha|factor|signal|ts_code)\b", re.IGNORECASE),
+)
+
+
+def validate_qlib_factor_hypothesis_response(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = ensure_hypothesis_response_dict(payload)
+    hypothesis = str(normalized.get("hypothesis") or "")
+    reason = str(normalized.get("reason") or "")
+    combined_text = f"{hypothesis}\n{reason}"
+
+    if any(pattern.search(combined_text) for pattern in _FACTOR_SETUP_LANGUAGE_PATTERNS):
+        raise ValueError(
+            "Qlib factor hypotheses must stay focused on market-data alpha directions, not setup, configuration, calibration, or debugging plans."
+        )
+    if any(pattern.search(combined_text) for pattern in _FACTOR_GENERIC_SCREENING_PATTERNS):
+        raise ValueError(
+            "Qlib factor hypotheses must include a concrete market-data factor idea rather than generic screening language."
+        )
+    if not any(pattern.search(hypothesis) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS):
+        raise ValueError(
+            "Qlib factor hypotheses must include concrete market-data alpha directions."
+        )
+    return normalized
 
 
 class QlibFactorHypothesisGen(FactorHypothesisGen):
@@ -46,7 +90,7 @@ class QlibFactorHypothesisGen(FactorHypothesisGen):
         return context_dict, True
 
     def convert_response(self, response: str) -> Hypothesis:
-        response_dict = json.loads(response)
+        response_dict = validate_qlib_factor_hypothesis_response(json.loads(response))
         hypothesis = QlibFactorHypothesis(
             hypothesis=response_dict.get("hypothesis"),
             reason=response_dict.get("reason"),

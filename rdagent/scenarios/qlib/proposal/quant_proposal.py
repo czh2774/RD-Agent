@@ -3,7 +3,10 @@ import random
 from typing import Tuple
 
 from rdagent.app.qlib_rd_loop.conf import QUANT_PROP_SETTING
-from rdagent.components.proposal import FactorAndModelHypothesisGen
+from rdagent.components.proposal import (
+    FactorAndModelHypothesisGen,
+    ensure_hypothesis_response_dict,
+)
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
 from rdagent.oai.llm_utils import APIBackend
 from rdagent.scenarios.qlib.proposal.bandit import (
@@ -154,7 +157,7 @@ class QlibQuantHypothesisGen(FactorAndModelHypothesisGen):
         context_dict = {
             "hypothesis_and_feedback": hypothesis_and_feedback,
             "last_hypothesis_and_feedback": last_hypothesis_and_feedback,
-            "SOTA_hypothesis_and_feedback": sota_hypothesis_and_feedback,
+            "sota_hypothesis_and_feedback": sota_hypothesis_and_feedback,
             "RAG": qaunt_rag,
             "hypothesis_output_format": T("scenarios.qlib.prompts:hypothesis_output_format_with_action").r(),
             "hypothesis_specification": (
@@ -166,7 +169,11 @@ class QlibQuantHypothesisGen(FactorAndModelHypothesisGen):
         return context_dict, True
 
     def convert_response(self, response: str) -> Hypothesis:
-        response_dict = json.loads(response)
+        response_dict = ensure_hypothesis_response_dict(
+            json.loads(response),
+            require_action=True,
+            default_action=self.targets,
+        )
         hypothesis = QlibQuantHypothesis(
             hypothesis=response_dict.get("hypothesis"),
             reason=response_dict.get("reason"),
