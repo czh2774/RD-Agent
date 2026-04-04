@@ -21,15 +21,86 @@ IMPORTANT_METRICS = [
 ]
 
 
-def _extract_metric_value(result: dict[str, Any] | None, metric_name: str) -> float | None:
-    if not result:
+def _render_feedback_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        rendered = [_render_feedback_value(item) for item in value]
+        return "; ".join(item for item in rendered if item)
+    if isinstance(value, dict):
+        rendered_pairs = []
+        for key, nested_value in value.items():
+            rendered_value = _render_feedback_value(nested_value)
+            if rendered_value:
+                rendered_pairs.append(f"{key}: {rendered_value}")
+        return "; ".join(rendered_pairs)
+    return str(value)
+
+
+def _first_nonempty_feedback_value(payload: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        if key not in payload:
+            continue
+        rendered = _render_feedback_value(payload[key])
+        if rendered:
+            return rendered
+    return ""
+
+
+def _find_nested_feedback_value(payload: Any, target_key: str) -> str:
+    if isinstance(payload, dict):
+        if target_key in payload:
+            rendered = _render_feedback_value(payload[target_key])
+            if rendered:
+                return rendered
+        for nested_value in payload.values():
+            rendered = _find_nested_feedback_value(nested_value, target_key)
+            if rendered:
+                return rendered
+    elif isinstance(payload, list):
+        for nested_value in payload:
+            rendered = _find_nested_feedback_value(nested_value, target_key)
+            if rendered:
+                return rendered
+    return ""
+
+
+def _first_nonempty_feedback_value_recursive(payload: dict[str, Any], *keys: str) -> str:
+    direct = _first_nonempty_feedback_value(payload, *keys)
+    if direct:
+        return direct
+    for key in keys:
+        rendered = _find_nested_feedback_value(payload, key)
+        if rendered:
+            return rendered
+    return ""
+
+
+def _extract_metric_value(result: Any, metric_name: str) -> float | None:
+    if result is None:
         return None
-    frame = pd.DataFrame(result)
-    if metric_name not in frame.index or "0" not in frame.columns:
-        return None
-    value = frame.at[metric_name, "0"]
     try:
-        return float(value)
+        frame = pd.DataFrame(result)
+    except Exception:  # noqa: BLE001
+        return None
+    if metric_name not in frame.index:
+        return None
+    metric_row = frame.loc[metric_name]
+    if isinstance(metric_row, pd.Series):
+        for candidate in metric_row.tolist():
+            try:
+                return float(candidate)
+            except (TypeError, ValueError):
+                continue
+        return None
+    try:
+        return float(metric_row)
     except (TypeError, ValueError):
         return None
 
@@ -54,7 +125,14 @@ def normalize_feedback_response(
     current_result: dict[str, Any] | None,
     sota_result: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    observations = payload.get("Observations")
+    observations = _first_nonempty_feedback_value_recursive(
+        payload,
+        "Observations",
+        "observations",
+        "comparison_to_sota",
+        "sota_comparison",
+        "conclusion",
+    )
     if not observations:
         observation_parts: list[str] = []
         sota_comparison = payload.get("sota_comparison")
@@ -68,7 +146,12 @@ def normalize_feedback_response(
             observation_parts.append("Limitations: " + "; ".join(str(item) for item in limitations))
         observations = " ".join(observation_parts) or "No observations provided"
 
-    hypothesis_evaluation = payload.get("Feedback for Hypothesis")
+    hypothesis_evaluation = _first_nonempty_feedback_value_recursive(
+        payload,
+        "Feedback for Hypothesis",
+        "hypothesis_evaluation",
+        "hypothesis_assessment",
+    )
     if not hypothesis_evaluation:
         hypothesis_assessment = payload.get("hypothesis_assessment")
         if isinstance(hypothesis_assessment, dict) and hypothesis_assessment:
@@ -78,7 +161,15 @@ def normalize_feedback_response(
         else:
             hypothesis_evaluation = "No feedback provided"
 
-    new_hypothesis = payload.get("New Hypothesis")
+    new_hypothesis = _first_nonempty_feedback_value_recursive(
+        payload,
+        "New Hypothesis",
+        "new_hypothesis",
+        "recommended_next_step",
+        "recommendation",
+        "next_hypothesis",
+        "next_step",
+    )
     if not new_hypothesis:
         hypothesis_assessment = payload.get("hypothesis_assessment")
         limitations = (
@@ -93,7 +184,14 @@ def normalize_feedback_response(
         else:
             new_hypothesis = "No new hypothesis provided"
 
-    reasoning = payload.get("Reasoning")
+    reasoning = _first_nonempty_feedback_value_recursive(
+        payload,
+        "Reasoning",
+        "reasoning",
+        "conclusion",
+        "comparison_to_sota",
+        "sota_comparison",
+    )
     if not reasoning:
         conclusion = payload.get("conclusion")
         if isinstance(conclusion, dict) and conclusion:
@@ -101,11 +199,19 @@ def normalize_feedback_response(
         else:
             reasoning = "No reasoning provided"
 
-    decision_value = payload.get("Decision", payload.get("Replace Best Result"))
+    decision_value = None
+    for key in ("Replace Best Result", "replace_best_result", "Decision", "decision"):
+        if key in payload:
+            decision_value = payload[key]
+            break
     if decision_value is None:
         decision = infer_replace_best_result(current_result, sota_result)
+        logger.warning(
+            "Feedback JSON did not include an explicit replace/decision flag; "
+            "inferring it from annualized return improvement."
+        )
     else:
-        decision = convert2bool(decision_value)
+        decision = convert2bool(_render_feedback_value(decision_value))
 
     return {
         "Observations": str(observations),
