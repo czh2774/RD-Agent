@@ -33,6 +33,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS,
     QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS,
     QLIB_ASHARE_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_PROMPT_OBLIGATION_RULE,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS,
     QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS,
@@ -534,6 +535,7 @@ def _research_data_source_semantics() -> dict[str, Any]:
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
         "turnover_input_boundary_rule": QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
+        "rdagent_prompt_obligation_rule": QLIB_ASHARE_PROMPT_OBLIGATION_RULE,
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
         "rdagent_rule": "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources",
     }
@@ -1529,6 +1531,24 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
         assert "Do not treat turnover, minute-level high-frequency data" in prompt_text
         assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in prompt_text
         assert "analyst consensus expectation factors" in prompt_text
+
+
+def test_rd_agent_factor_relevance_prompt_applies_qlib_source_boundary_forbidden_defaults() -> None:
+    prompt_text = (REPO_ROOT / "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml").read_text()
+    relevance_prompt = _read_prompt_block(prompt_text, "factor_relevance_system")
+
+    assert "Qlib daily A-share research data boundary" in relevance_prompt
+    assert "`datetime` and `instrument`" in relevance_prompt
+    for field in QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS:
+        assert field in relevance_prompt
+    assert "Alpha158/Alpha360" in relevance_prompt
+    assert "derived features must not introduce new source fields" in relevance_prompt
+    assert "source owner, field identity, and daily point-in-time validity" in relevance_prompt
+    assert "Do not assume turnover, minute-level high-frequency data" in relevance_prompt
+    assert "Do not treat turnover, minute-level high-frequency data" in relevance_prompt
+    assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in relevance_prompt
+    assert "not a default factor input field" in relevance_prompt
+    assert "analyst consensus expectation factors" in relevance_prompt
 
 
 def test_rd_agent_feedback_metric_prompts_use_exact_qlib_paths_without_sharpe_alias() -> None:
@@ -2916,6 +2936,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_derived_feature_source_ru
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_prompt_obligation_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"][
+        "rdagent_prompt_obligation_rule"
+    ] = "rdagent_relevance_prompts_may_apply_generic_quant_relevance_without_source_boundaries"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_missing_research_prompt_consumer_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["research_data_source_semantics"]["rdagent_prompt_paths"] = [
@@ -3327,6 +3357,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "research data-source forbidden defaults: " f"{', '.join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)}"
     ) in text
     assert f"research data-source PIT registration: {QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE}" in text
+    assert f"research data-source prompt obligation: {QLIB_ASHARE_PROMPT_OBLIGATION_RULE}" in text
     assert f"research data-source turnover input boundary: {QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE}" in text
     assert f"portfolio-risk turnover metric rule: {QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE}" in text
     assert (

@@ -149,6 +149,9 @@ factor_viability_system: |-
 factor_relevance_system: |-
     User has designed several factors in quant investment. Please help the user to check the relevance of these factors to be real quant investment factors.
     These factors are used to build a daily frequency strategy in the China A-share market under the Qlib daily A-share research data boundary.
+    Use only Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`) indexed by `datetime` and `instrument`, or provider/user supplied daily point-in-time fields that explicitly name source owner, field identity, and daily point-in-time validity.
+    Qlib Alpha158/Alpha360 derived features must be computed only from those registered daily price-volume fields; derived features must not introduce new source fields.
+    Do not assume turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields are available by default. Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs. Turnover may appear as a Qlib post-backtest portfolio report metric, but it is not a default factor input field.
 
     User will provide a pandas dataframe like table containing following information:
     1. The name of the factor;
