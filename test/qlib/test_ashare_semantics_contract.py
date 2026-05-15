@@ -30,7 +30,7 @@ def _valid_contract() -> dict[str, Any]:
             "relationship_rule": (
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine trade unit, position, execution-price, price-adjustment, "
-                "suspension/tradability, price-limit, or cost semantics."
+                "suspension/tradability, price-limit, settlement, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -54,6 +54,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_trade_unit_or_position_type",
                 "redefine_price_limit_thresholds_or_authoritative_fields",
                 "treat_board_fallback_as_primary_price_limit_authority",
+                "redefine_settlement_or_sellable_position_state",
                 "redefine_cost_model_or_exchange_kwargs",
                 "treat_research_prompt_projection_as_backtest_authority",
                 "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -256,10 +257,19 @@ def _valid_contract() -> dict[str, Any]:
                 "rdagent_rule": "describe_only_do_not_redefine_price_limit_thresholds_or_fields",
             },
             "settlement_semantics": {
+                "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
                 "same_day_sell_policy": "shares_bought_today_are_unsellable_until_day_commit",
                 "position_type": "AsharePosition",
+                "sellable_state_field": "sellable_amount",
+                "initial_sellable_rule": "existing_or_settled_holdings_are_sellable",
+                "intraday_buy_rule": "same_day_buys_increase_total_amount_but_not_sellable_amount",
+                "intraday_bar_rule": "non_day_bars_do_not_release_same_day_buys",
+                "day_commit_rule": "day_bar_commit_sets_sellable_amount_to_total_amount",
+                "sell_order_clip_rule": "sell_orders_are_clipped_by_position_get_sellable_amount",
+                "sell_overdraft_rule": "AsharePosition_rejects_sells_above_sellable_amount",
                 "runtime_authority": "qlib.backtest.position.AsharePosition",
+                "exchange_clip_authority": "qlib.backtest.exchange.Exchange._calc_trade_info_by_order",
                 "rdagent_rule": "describe_only_do_not_redefine_position_or_settlement",
             },
             "order_unit_semantics": {
@@ -346,6 +356,7 @@ def _valid_contract() -> dict[str, Any]:
             "execution_price_semantics",
             "price_adjustment_semantics",
             "price_limit_semantics",
+            "settlement_semantics",
             "trade_unit",
             "position_type",
             "settlement_rule",
@@ -398,6 +409,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_price_adjustment_or_order_factor" in boundary["rdagent_forbidden_actions"]
     assert "redefine_price_limit_thresholds_or_authoritative_fields" in boundary["rdagent_forbidden_actions"]
     assert "treat_board_fallback_as_primary_price_limit_authority" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "treat_research_prompt_projection_as_backtest_authority" in boundary["rdagent_forbidden_actions"]
     assert boundary["rdagent_must_not_redefine"] == [
         "instrument_identity_semantics",
@@ -406,6 +418,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "settlement_semantics",
         "trade_unit",
         "position_type",
         "settlement_rule",
@@ -474,6 +487,11 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["settlement_semantics"]["same_day_sell_policy"]
         == "shares_bought_today_are_unsellable_until_day_commit"
+    )
+    assert context["prompt_projection_payload"]["settlement_semantics"]["sellable_state_field"] == "sellable_amount"
+    assert (
+        context["prompt_projection_payload"]["settlement_semantics"]["day_commit_rule"]
+        == "day_bar_commit_sets_sellable_amount_to_total_amount"
     )
     assert context["prompt_projection_payload"]["order_unit_semantics"]["trade_unit"] == 100
     assert (
@@ -769,6 +787,40 @@ def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_clo
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_same_day_sell_policy_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["settlement_semantics"]["same_day_sell_policy"] = "same_day_buys_are_sellable"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="settlement_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_sellable_state_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["settlement_semantics"]["sellable_state_field"] = "amount"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="settlement_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_day_commit_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["settlement_semantics"][
+        "day_commit_rule"
+    ] = "intraday_buys_are_released_on_minute_bar"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="settlement_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_settlement_runtime_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["settlement_semantics"]["runtime_authority"] = "rdagent.position.Ashare"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="settlement_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_order_unit_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["order_unit_semantics"]["rdagent_rule"] = "rdagent_may_override_round_lots"
@@ -851,7 +903,12 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "board_thresholds_are_runtime_compatibility_fallback_only_not_primary_authority"
     ) in text
     assert "settlement authority: pyqlib (t_plus_1_stock)" in text
+    assert "settlement runtime authority: pyqlib (qlib.backtest.position.AsharePosition)" in text
     assert "same-day sell policy: shares_bought_today_are_unsellable_until_day_commit" in text
+    assert "settlement sellable state: sellable_amount" in text
+    assert ("settlement intraday buy rule: " "same_day_buys_increase_total_amount_but_not_sellable_amount") in text
+    assert "settlement day commit rule: day_bar_commit_sets_sellable_amount_to_total_amount" in text
+    assert "settlement sell clip: sell_orders_are_clipped_by_position_get_sellable_amount" in text
     assert "round-lot authority: pyqlib (100 share)" in text
     assert "round-lot buy rule: round_buy_amount_down_to_trade_unit_after_cash_and_volume_limits" in text
     assert "round-lot sell rule: round_sell_amount_down_to_trade_unit_except_full_liquidation" in text
@@ -859,8 +916,8 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, transaction_cost_semantics, "
         "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
-        "price_limit_semantics, trade_unit, position_type, settlement_rule, same_day_sell_policy, "
-        "price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
+        "price_limit_semantics, settlement_semantics, trade_unit, position_type, settlement_rule, "
+        "same_day_sell_policy, price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
