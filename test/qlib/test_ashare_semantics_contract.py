@@ -214,6 +214,41 @@ def _strategy_order_semantics() -> dict[str, str]:
     }
 
 
+def _portfolio_risk_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_portfolio_risk_analysis",
+        "record_authority": "qlib.workflow.record_temp.PortAnaRecord",
+        "risk_analysis_authority": "qlib.contrib.evaluate.risk_analysis",
+        "freq_authority": "qlib.utils.resam.Freq.parse",
+        "backtest_source_rule": "PortAnaRecord_runs_normal_backtest_and_reads_portfolio_metric_dict_by_freq",
+        "report_artifact_rule": "report_normal_dataframe_saved_as_portfolio_analysis_report_normal_{freq}_pkl",
+        "risk_artifact_rule": "risk_analysis_dataframe_saved_as_portfolio_analysis_port_analysis_{freq}_pkl",
+        "recorder_metric_rule": "risk_metrics_are_logged_as_{freq}.{report_type}.{risk_metric}",
+        "default_frequency_rule": "missing_risk_analysis_freq_uses_first_executor_portfolio_metric_frequency",
+        "required_report_columns": ["return", "bench", "cost", "turnover"],
+        "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
+        "excess_without_cost_rule": "report_return_minus_benchmark",
+        "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
+        "risk_metric_fields": ["mean", "std", "annualized_return", "information_ratio", "max_drawdown"],
+        "default_accumulation_mode": "sum",
+        "supported_accumulation_modes": ["sum", "product"],
+        "sum_mode_rule": "qlib_sum_mode_uses_arithmetic_cumulative_return_not_geometric_compounding",
+        "day_annualization_scaler": 238,
+        "annualization_scaler_rule": "risk_analysis_parses_freq_when_N_is_absent_and_N_overrides_freq_when_present",
+        "mean_rule": "sum_mode_mean_equals_return_series_mean",
+        "std_rule": "sum_mode_std_uses_sample_standard_deviation_ddof_one",
+        "annualized_return_rule": "sum_mode_annualized_return_equals_mean_times_annualization_scaler",
+        "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
+        "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
+        "rdagent_consumed_metric_paths": [
+            "IC",
+            "1day.excess_return_without_cost.annualized_return",
+            "1day.excess_return_without_cost.max_drawdown",
+        ],
+        "rdagent_rule": "describe_only_do_not_redefine_portfolio_risk_analysis_metrics",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -228,7 +263,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, portfolio risk analysis, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -262,6 +297,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_trade_execution_indicators_or_quality_metrics",
                 "redefine_executor_decision_lifecycle_or_nested_execution_order",
                 "redefine_strategy_signal_to_order_generation",
+                "redefine_portfolio_risk_analysis_metrics",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -296,6 +332,7 @@ def _valid_contract() -> dict[str, Any]:
                 "trade_indicator_semantics",
                 "executor_decision_semantics",
                 "strategy_order_semantics",
+                "portfolio_risk_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -333,6 +370,7 @@ def _valid_contract() -> dict[str, Any]:
                 "trade_indicator_semantics",
                 "executor_decision_semantics",
                 "strategy_order_semantics",
+                "portfolio_risk_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -572,6 +610,7 @@ def _valid_contract() -> dict[str, Any]:
             "trade_indicator_semantics": _trade_indicator_semantics(),
             "executor_decision_semantics": _executor_decision_semantics(),
             "strategy_order_semantics": _strategy_order_semantics(),
+            "portfolio_risk_semantics": _portfolio_risk_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -723,6 +762,7 @@ def _valid_contract() -> dict[str, Any]:
             "trade_indicator_semantics",
             "executor_decision_semantics",
             "strategy_order_semantics",
+            "portfolio_risk_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -796,6 +836,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_trade_execution_indicators_or_quality_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_executor_decision_lifecycle_or_nested_execution_order" in boundary["rdagent_forbidden_actions"]
     assert "redefine_strategy_signal_to_order_generation" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_portfolio_risk_analysis_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -812,6 +853,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "portfolio_risk_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -887,6 +929,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["trade_indicator_semantics"] == _trade_indicator_semantics()
     assert context["prompt_projection_payload"]["executor_decision_semantics"] == _executor_decision_semantics()
     assert context["prompt_projection_payload"]["strategy_order_semantics"] == _strategy_order_semantics()
+    assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -1679,6 +1722,43 @@ def test_malformed_qlib_prompt_projection_with_mutable_strategy_return_rule_fail
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_portfolio_risk_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["portfolio_risk_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_portfolio_risk_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"][
+        "risk_analysis_authority"
+    ] = "rdagent.analysis.risk_analysis"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_portfolio_risk_scaler_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"]["day_annualization_scaler"] = 252
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_portfolio_metric_paths_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"]["rdagent_consumed_metric_paths"] = [
+        "annual_return",
+        "max_drawdown",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -1938,6 +2018,17 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "combined_last_and_today_scores_prevent_dropping_higher_score_stock_for_lower_score_buy"
     ) in text
     assert "strategy-order order return rule: exchange_returns_sell_orders_before_buy_orders" in text
+    assert "portfolio-risk authority: pyqlib (qlib.contrib.evaluate.risk_analysis)" in text
+    assert "portfolio-risk metrics: mean, std, annualized_return, information_ratio, max_drawdown" in text
+    assert (
+        "portfolio-risk consumed paths: IC, 1day.excess_return_without_cost.annualized_return, "
+        "1day.excess_return_without_cost.max_drawdown"
+    ) in text
+    assert "portfolio-risk annualization scaler: 238" in text
+    assert (
+        "portfolio-risk max drawdown rule: "
+        "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max"
+    ) in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -2025,7 +2116,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, portfolio_risk_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
