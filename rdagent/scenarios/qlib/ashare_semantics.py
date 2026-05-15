@@ -137,6 +137,7 @@ def format_rd_agent_ashare_semantic_context(
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
+    order_tradability = _mapping(prompt_payload.get("order_tradability_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
     cash_settlement = _mapping(prompt_payload.get("cash_settlement_semantics"))
@@ -204,6 +205,11 @@ def format_rd_agent_ashare_semantic_context(
             f"- price-limit sell rule: {price_limit.get('sell_limit_rule')}",
             f"- price-limit fallback: {price_limit.get('board_fallback_policy')}",
             f"- price-limit fallback authority: {price_limit.get('fallback_authority_rule')}",
+            f"- order-tradability authority: pyqlib ({order_tradability.get('runtime_authority')})",
+            f"- order-tradability decision rule: {order_tradability.get('decision_rule')}",
+            f"- order-tradability suspension rule: {order_tradability.get('suspension_rule')}",
+            f"- order-tradability directional limit rule: {order_tradability.get('directional_limit_rule')}",
+            f"- order-tradability failure result: {order_tradability.get('failure_result')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
             f"- settlement runtime authority: pyqlib ({settlement.get('runtime_authority')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
@@ -311,6 +317,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_trade_unit_or_position_type",
         "redefine_price_limit_thresholds_or_authoritative_fields",
         "treat_board_fallback_as_primary_price_limit_authority",
+        "redefine_order_tradability_or_limit_checks",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -346,6 +353,20 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract evidence_contract must declare sha256_json_canonical_v1"
         )
+    fingerprint_scope = _string_list(evidence_contract.get("fingerprint_scope"))
+    for key in (
+        "schema_version",
+        "market_semantics",
+        "runtime_surfaces",
+        "universe_membership_semantics",
+        "cash_settlement_semantics",
+        "order_tradability_semantics",
+        "rdagent_must_not_redefine",
+    ):
+        if key not in fingerprint_scope:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract evidence_contract fingerprint_scope must include {key}"
+            )
     required_evidence_fields = _string_list(evidence_contract.get("rdagent_required_evidence_fields"))
     for key in (
         "qlib_contract_id",
@@ -373,6 +394,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "order_tradability_semantics",
         "market_semantics.data_frequency",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -929,6 +951,46 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload board_limit_thresholds must include {key}"
             )
+    order_tradability = _mapping(prompt_payload.get("order_tradability_semantics"))
+    for key in (
+        "semantic_name",
+        "runtime_authority",
+        "tradability_authority",
+        "suspension_authority",
+        "price_limit_authority",
+        "failure_result",
+        "failed_order_state_field",
+        "directional_limit_rule",
+        "all_direction_limit_rule",
+        "suspension_rule",
+        "limit_rule",
+        "decision_rule",
+        "rdagent_rule",
+    ):
+        if key not in order_tradability:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload order_tradability_semantics must include {key}"
+            )
+    expected_order_tradability_values = {
+        "semantic_name": "a_share_order_tradability_gate",
+        "runtime_authority": "qlib.backtest.exchange.Exchange.check_order",
+        "tradability_authority": "qlib.backtest.exchange.Exchange.is_stock_tradable",
+        "suspension_authority": "qlib.backtest.exchange.Exchange.check_stock_suspended",
+        "price_limit_authority": "qlib.backtest.exchange.Exchange.check_stock_limit",
+        "failure_result": "deal_amount_zero_trade_value_zero_cost_nan_price",
+        "failed_order_state_field": "Order.deal_amount",
+        "directional_limit_rule": "buy_orders_check_limit_buy_and_sell_orders_check_limit_sell",
+        "all_direction_limit_rule": "missing_direction_checks_any_buy_or_sell_limit",
+        "suspension_rule": "missing_close_or_unknown_stock_is_not_tradable",
+        "limit_rule": "limit_flags_true_mark_direction_not_tradable",
+        "decision_rule": "check_order_delegates_to_is_stock_tradable_before_deal_execution",
+        "rdagent_rule": "describe_only_do_not_redefine_order_tradability_or_limit_checks",
+    }
+    for key, expected_value in expected_order_tradability_values.items():
+        if order_tradability.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"order_tradability_semantics must preserve {key}"
+            )
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     for key in (
         "semantic_name",
@@ -1334,6 +1396,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "order_tradability_semantics",
         "settlement_semantics",
         "cash_settlement_semantics",
         "cash_constraint_semantics",
