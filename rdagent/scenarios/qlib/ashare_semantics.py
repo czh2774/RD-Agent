@@ -159,6 +159,9 @@ QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC = QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATH
 QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE = (
     "first_round_without_sota_must_not_treat_positive_icir_or_not_too_negative_performance_as_success_proxy"
 )
+QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE = "required_bandit_metrics_must_be_present_numeric_and_finite"
+QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE = "missing_bandit_metric_path_fails_closed_without_zero_default"
+QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE = "non_numeric_or_non_finite_bandit_metric_fails_closed_without_zero_default"
 QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES = (
     "not too negative",
     "performance is not too negative",
@@ -547,6 +550,9 @@ def format_rd_agent_ashare_semantic_context(
             f"- feedback-metric authority: pyqlib ({feedback_metric.get('portfolio_metric_authority')})",
             f"- feedback-metric primary: {feedback_metric.get('feedback_primary_metric')}",
             f"- feedback-metric first-round decision rule: {feedback_metric.get('first_round_decision_rule')}",
+            f"- feedback-metric bandit extraction rule: {feedback_metric.get('bandit_metric_extraction_rule')}",
+            f"- feedback-metric bandit missing failure: {feedback_metric.get('bandit_metric_missing_failure')}",
+            f"- feedback-metric bandit invalid failure: {feedback_metric.get('bandit_metric_invalid_failure')}",
             "- feedback-metric paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
@@ -1935,6 +1941,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_primary_metric",
         "sota_fallback_rule",
         "first_round_decision_rule",
+        "bandit_metric_extraction_rule",
+        "bandit_metric_missing_failure",
+        "bandit_metric_invalid_failure",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
         "forbidden_metric_aliases",
@@ -1959,6 +1968,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
         "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
         "first_round_decision_rule": QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
+        "bandit_metric_extraction_rule": QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
+        "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
+        "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],

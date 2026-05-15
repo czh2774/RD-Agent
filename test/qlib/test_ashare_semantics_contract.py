@@ -14,6 +14,9 @@ import pytest
 import rdagent.scenarios.qlib.ashare_semantics as rdagent_ashare_semantics
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
+    QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
+    QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
     QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
@@ -475,6 +478,9 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
         "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
         "first_round_decision_rule": QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
+        "bandit_metric_extraction_rule": QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
+        "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
+        "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],
@@ -1534,6 +1540,9 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert list(QLIB_ASHARE_BANDIT_METRIC_PATHS) == feedback["bandit_metric_paths"]
     assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC == feedback["feedback_primary_metric"]
     assert QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE == feedback["first_round_decision_rule"]
+    assert QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE == feedback["bandit_metric_extraction_rule"]
+    assert QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE == feedback["bandit_metric_missing_failure"]
+    assert QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE == feedback["bandit_metric_invalid_failure"]
     assert (
         list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES)
         == feedback["forbidden_first_round_success_proxies"]
@@ -1559,6 +1568,9 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "annualized_return " not in bandit_source
     assert "QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS" in bandit_source
     assert "QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS" in bandit_source
+    assert "QlibAshareBanditMetricError" in bandit_source
+    assert "result.get(" not in bandit_source
+    assert "return Metrics()" not in bandit_source
     assert "IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)" in feedback_source
     assert "QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
     assert "metric_name = QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
@@ -2306,6 +2318,7 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
 
     from rdagent.scenarios.qlib.proposal.bandit import (
         Metrics,
+        QlibAshareBanditMetricError,
         extract_metrics_from_experiment,
     )
 
@@ -2327,6 +2340,24 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     assert abs(metrics.drawdown_adjusted_return - 2.0) < 1e-12
     assert abs(metrics.as_vector()[-1] - 2.0) < 1e-12
     assert not hasattr(metrics, "sharpe")
+
+    missing_experiment = types.SimpleNamespace(result={QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0]: 0.1})
+    with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE):
+        extract_metrics_from_experiment(missing_experiment)
+
+    invalid_experiment = types.SimpleNamespace(
+        result={
+            QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0]: 0.1,
+            QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[1]: 0.2,
+            QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[2]: 0.3,
+            QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[3]: 0.4,
+            QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0]: 0.2,
+            QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1]: float("nan"),
+            QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2]: -0.1,
+        }
+    )
+    with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE):
+        extract_metrics_from_experiment(invalid_experiment)
 
 
 def test_rd_agent_runtime_handoff_keeps_execution_payload_separate_from_prompt_context() -> None:
@@ -3498,6 +3529,16 @@ def test_malformed_qlib_prompt_projection_with_missing_first_round_forbidden_pro
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_bandit_metric_failure_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "bandit_metric_missing_failure"
+    ] = "missing_bandit_metric_path_defaults_to_zero"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_feedback_derived_utility_alias_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"]["derived_bandit_utility_name"] = "sharpe"
@@ -4132,6 +4173,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "feedback-metric authority: pyqlib (qlib.workflow.record_temp.PortAnaRecord)" in text
     assert f"feedback-metric primary: {QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC}" in text
     assert f"feedback-metric first-round decision rule: {QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE}" in text
+    assert f"feedback-metric bandit extraction rule: {QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE}" in text
+    assert f"feedback-metric bandit missing failure: {QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE}" in text
+    assert f"feedback-metric bandit invalid failure: {QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE}" in text
     assert f"feedback-metric paths: {', '.join(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)}" in text
     assert f"feedback-metric bandit utility: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME}" in text
     assert (
