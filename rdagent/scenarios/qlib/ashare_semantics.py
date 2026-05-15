@@ -133,6 +133,7 @@ def format_rd_agent_ashare_semantic_context(
     universe_membership = _mapping(prompt_payload.get("universe_membership_semantics"))
     trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
+    market_impact = _mapping(prompt_payload.get("market_impact_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -184,6 +185,11 @@ def format_rd_agent_ashare_semantic_context(
             "- transaction-cost sell components: "
             + ", ".join(str(item) for item in transaction_cost.get("sell_cost_components", [])),
             f"- transaction-cost values: {transaction_cost.get('numeric_values_exposure')}",
+            f"- market-impact authority: pyqlib ({market_impact.get('runtime_authority')})",
+            f"- market-impact parameter: {market_impact.get('configuration_parameter')}",
+            f"- market-impact ratio rule: {market_impact.get('impact_cost_ratio_rule')}",
+            f"- market-impact missing-volume rule: {market_impact.get('missing_volume_rule')}",
+            f"- market-impact final cost rule: {market_impact.get('final_cost_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -326,6 +332,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_order_tradability_or_limit_checks",
         "redefine_order_fill_amount_or_clip_sequence",
+        "redefine_market_impact_or_cost_ratio",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -370,6 +377,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "cash_settlement_semantics",
         "order_tradability_semantics",
         "order_fill_amount_semantics",
+        "market_impact_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -399,6 +407,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "universe_membership_semantics",
         "trading_calendar_semantics",
         "transaction_cost_semantics",
+        "market_impact_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -712,6 +721,50 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must forbid RD-Agent redefinition"
         )
+    market_impact = _mapping(prompt_payload.get("market_impact_semantics"))
+    for key in (
+        "semantic_name",
+        "runtime_authority",
+        "cost_authority",
+        "volume_authority",
+        "capacity_authority",
+        "configuration_parameter",
+        "volume_field",
+        "total_trade_value_rule",
+        "impact_cost_ratio_rule",
+        "missing_volume_rule",
+        "cost_ratio_rule",
+        "final_cost_rule",
+        "joinquant_cost_rule",
+        "numeric_value_exposure",
+        "rdagent_rule",
+    ):
+        if key not in market_impact:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload market_impact_semantics must include {key}"
+            )
+    expected_market_impact_values = {
+        "semantic_name": "a_share_market_impact_cost_adjustment",
+        "runtime_authority": "qlib.backtest.exchange.Exchange._calc_trade_info_by_order",
+        "cost_authority": "qlib.backtest.exchange.Exchange._calculate_trade_cost",
+        "volume_authority": "qlib.backtest.exchange.Exchange.get_volume",
+        "capacity_authority": "qlib.backtest.exchange.Exchange._clip_amount_by_volume",
+        "configuration_parameter": "impact_cost",
+        "volume_field": "$volume",
+        "total_trade_value_rule": "total_trade_value_equals_quote_volume_times_trade_price",
+        "impact_cost_ratio_rule": "impact_cost_times_post_volume_clip_trade_value_over_total_trade_value_squared",
+        "missing_volume_rule": "missing_zero_or_nan_total_trade_value_uses_raw_impact_cost_ratio",
+        "cost_ratio_rule": "adjusted_cost_ratio_is_added_to_buy_or_sell_cost_ratio_before_cash_guards",
+        "final_cost_rule": "trade_cost_is_recomputed_after_final_deal_amount_with_adjusted_cost_ratio",
+        "joinquant_cost_rule": "joinquant_ashare_policy_receives_adjusted_cost_ratio_as_impact_cost",
+        "numeric_value_exposure": "runtime_handoff_only_not_prompt_projection",
+        "rdagent_rule": "describe_only_do_not_redefine_market_impact_or_cost_ratio",
+    }
+    for key, expected_value in expected_market_impact_values.items():
+        if market_impact.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"market_impact_semantics must preserve {key}"
+            )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -1456,6 +1509,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "universe_membership_semantics",
         "trading_calendar_semantics",
         "transaction_cost_semantics",
+        "market_impact_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
