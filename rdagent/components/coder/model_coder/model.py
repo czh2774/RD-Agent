@@ -24,6 +24,7 @@ class ModelTask(CoSTEERTask):
         formulation: str = None,
         variables: Dict[str, str] = None,
         model_type: Optional[str] = None,
+        model_output_boundary: Optional[str] = None,
         **kwargs,
     ) -> None:
         self.formulation: str = formulation
@@ -34,6 +35,7 @@ class ModelTask(CoSTEERTask):
         self.model_type: str = (
             model_type  # Tabular for tabular model, TimesSeries for time series model, Graph for graph model, XGBoost for XGBoost model
         )
+        self.model_output_boundary: Optional[str] = model_output_boundary
         super().__init__(name=name, description=description, *args, **kwargs)
 
     def get_task_information(self):
@@ -46,6 +48,7 @@ description: {self.description}
         task_desc += f"hyperparameters: {self.hyperparameters}\n"
         task_desc += f"training_hyperparameters: {self.training_hyperparameters}\n"
         task_desc += f"model_type: {self.model_type}\n"
+        task_desc += f"model_output_boundary: {self.model_output_boundary}\n" if self.model_output_boundary else ""
         return task_desc
 
     def get_task_brief_information(self):
@@ -56,6 +59,7 @@ description: {self.description}
         task_desc += f"hyperparameters: {self.hyperparameters}\n"
         task_desc += f"training_hyperparameters: {self.training_hyperparameters}\n"
         task_desc += f"model_type: {self.model_type}\n"
+        task_desc += f"model_output_boundary: {self.model_output_boundary}\n" if self.model_output_boundary else ""
         return task_desc
 
     @staticmethod
