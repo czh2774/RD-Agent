@@ -6,6 +6,8 @@ on:
     paths:
       - "rdagent/components/coder/factor_coder/factor.py"
       - "rdagent/components/coder/factor_coder/prompts.yaml"
+      - "rdagent/components/coder/model_coder/model.py"
+      - "rdagent/components/coder/model_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
@@ -22,6 +24,7 @@ on:
       - "rdagent/scenarios/qlib/proposal/bandit.py"
       - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
       - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
+      - "rdagent/scenarios/qlib/proposal/model_proposal.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -31,6 +34,8 @@ on:
     paths:
       - "rdagent/components/coder/factor_coder/factor.py"
       - "rdagent/components/coder/factor_coder/prompts.yaml"
+      - "rdagent/components/coder/model_coder/model.py"
+      - "rdagent/components/coder/model_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
@@ -47,6 +52,7 @@ on:
       - "rdagent/scenarios/qlib/proposal/bandit.py"
       - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
       - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
+      - "rdagent/scenarios/qlib/proposal/model_proposal.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -78,12 +84,14 @@ jobs:
         run: |
           python -m py_compile \
             rdagent/components/coder/factor_coder/factor.py \
+            rdagent/components/coder/model_coder/model.py \
             rdagent/scenarios/qlib/ashare_semantics.py \
             rdagent/scenarios/qlib/developer/feedback.py \
             rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py \
             rdagent/scenarios/qlib/proposal/bandit.py \
             rdagent/scenarios/qlib/proposal/factor_proposal.py \
             rdagent/scenarios/qlib/proposal/factor_semantics.py \
+            rdagent/scenarios/qlib/proposal/model_proposal.py \
             rdagent/log/ui/app.py \
             test/qlib/test_ashare_semantics_contract.py
 

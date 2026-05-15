@@ -8,6 +8,9 @@ from rdagent.components.proposal import (
     ensure_hypothesis_response_dict,
 )
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
+from rdagent.scenarios.qlib.ashare_semantics import (
+    build_qlib_ashare_model_task_output_boundary,
+)
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils.agent.tpl import T
@@ -138,6 +141,7 @@ class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
     def convert_response(self, response: str, hypothesis: Hypothesis, trace: Trace) -> ModelExperiment:
         response_dict = json.loads(response)
         tasks = []
+        model_output_boundary = build_qlib_ashare_model_task_output_boundary()
         for model_name in response_dict:
             description = response_dict[model_name]["description"]
             formulation = response_dict[model_name]["formulation"]
@@ -156,6 +160,7 @@ class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
                     hyperparameters=hyperparameters,
                     training_hyperparameters=training_hyperparameters,
                     model_type=model_type,
+                    model_output_boundary=model_output_boundary,
                 )
             )
         exp = QlibModelExperiment(tasks, hypothesis=hypothesis)

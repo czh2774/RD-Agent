@@ -26,7 +26,9 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
+    QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
+    QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
     QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
@@ -49,6 +51,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS,
     QlibAshareSemanticContractError,
     append_ashare_semantic_context,
+    build_qlib_ashare_model_task_output_boundary,
     build_rd_agent_ashare_runtime_handoff,
     build_rd_agent_ashare_semantic_context,
     format_rd_agent_ashare_semantic_context,
@@ -316,6 +319,8 @@ def _prediction_signal_semantics() -> dict[str, Any]:
             "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
         ),
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
+        "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
+        "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
     }
@@ -1764,6 +1769,37 @@ def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder(
     assert "rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py" in workflow
 
 
+def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary_to_coder() -> None:
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+    assert "Qlib A-share model output boundary" in boundary
+    assert f"Qlib prediction signal score for {QLIB_ASHARE_LABEL_COLUMN}" in boundary
+    assert "pred.pkl" in boundary
+    assert "`score` column" in boundary
+    assert "`datetime` and `instrument`" in boundary
+    assert "not_realized_or_executable_return" in boundary
+    assert QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE in boundary
+    assert QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE in boundary
+    assert "not_graph_node_output" in boundary
+
+    model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
+    assert "model_output_boundary" in model_task_source
+    assert "model_output_boundary: {self.model_output_boundary}" in model_task_source
+
+    proposal_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/model_proposal.py").read_text()
+    assert "build_qlib_ashare_model_task_output_boundary" in proposal_source
+    assert "model_output_boundary=model_output_boundary" in proposal_source
+
+    coder_prompt = (REPO_ROOT / "rdagent/components/coder/model_coder/prompts.yaml").read_text()
+    assert "{{ model_information_str }}" in coder_prompt
+    for relative_path in QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS:
+        assert (REPO_ROOT / relative_path).exists()
+
+    workflow = (REPO_ROOT / ".github/workflows/internal_ashare_semantics.yml").read_text()
+    assert "rdagent/components/coder/model_coder/model.py" in workflow
+    assert "rdagent/components/coder/model_coder/prompts.yaml" in workflow
+    assert "rdagent/scenarios/qlib/proposal/model_proposal.py" in workflow
+
+
 def test_rd_agent_factor_coder_prompts_enforce_qlib_source_boundary_as_non_bypassable() -> None:
     coder_prompt = (REPO_ROOT / "rdagent/components/coder/factor_coder/prompts.yaml").read_text()
     source_boundary_prompt_keys = [
@@ -2648,6 +2684,26 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_output_format_rule_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_task_boundary_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_task_boundary_rule"
+    ] = "rdagent_model_tasks_may_omit_qlib_prediction_signal_boundary"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_model_implementation_prompt_consumer_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_implementation_prompt_paths"] = [
+        "rdagent/scenarios/qlib/prompts.yaml",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_rd_agent_prompts_describe_prediction_signal_without_realized_return_claims() -> None:
     combined = "\n".join((REPO_ROOT / path).read_text() for path in QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS)
     experiment_prompt = (REPO_ROOT / "rdagent/scenarios/qlib/experiment/prompts.yaml").read_text()
@@ -3314,6 +3370,11 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
     ) in text
     assert f"prediction-signal model output format: {QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE}" in text
+    assert f"prediction-signal model task boundary: {QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE}" in text
+    assert (
+        "prediction-signal implementation prompts: "
+        + ", ".join(str(path) for path in QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS)
+    ) in text
     assert "signal-ic authority: pyqlib (qlib.workflow.record_temp.SigAnaRecord)" in text
     assert "signal-ic calculation: pyqlib (qlib.contrib.eva.alpha.calc_ic)" in text
     assert "signal-ic metrics: IC, ICIR, Rank IC, Rank ICIR" in text

@@ -76,6 +76,10 @@ QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/prompts.yaml",
 )
 QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE = "rdagent_model_experiment_output_format_must_describe_prediction_as_score_column_indexed_by_datetime_and_instrument_not_graph_node_output"
+QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE = (
+    "rdagent_qlib_model_tasks_must_carry_prediction_signal_score_boundary_to_model_implementation_coder"
+)
+QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS = ("rdagent/components/coder/model_coder/prompts.yaml",)
 QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
 QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
     "1day.excess_return_without_cost.annualized_return",
@@ -227,6 +231,23 @@ def build_rd_agent_ashare_runtime_handoff(
     }
 
 
+def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | None = None) -> str:
+    context = build_rd_agent_ashare_semantic_context(contract)
+    prompt_payload = _mapping(context.get("prompt_projection_payload"))
+    prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
+    return (
+        "Qlib A-share model output boundary: model implementations must emit a Qlib prediction signal score "
+        f"for {QLIB_ASHARE_LABEL_COLUMN}; Qlib records predictions in "
+        f"{prediction_signal.get('prediction_artifact')} with `{prediction_signal.get('prediction_column')}` "
+        "column indexed by `datetime` and `instrument`. "
+        f"{prediction_signal.get('model_predict_rule')}; "
+        f"{prediction_signal.get('label_alignment_rule')}; "
+        f"{prediction_signal.get('prompt_wording_rule')}; "
+        f"{prediction_signal.get('rdagent_model_output_format_rule')}; "
+        f"{prediction_signal.get('rdagent_model_task_boundary_rule')}."
+    )
+
+
 def format_rd_agent_ashare_semantic_context(
     context: Mapping[str, Any] | None = None,
 ) -> str:
@@ -359,6 +380,9 @@ def format_rd_agent_ashare_semantic_context(
             f"- prediction-signal ranking rule: {prediction_signal.get('strategy_ranking_rule')}",
             f"- prediction-signal prompt wording: {prediction_signal.get('prompt_wording_rule')}",
             f"- prediction-signal model output format: {prediction_signal.get('rdagent_model_output_format_rule')}",
+            f"- prediction-signal model task boundary: {prediction_signal.get('rdagent_model_task_boundary_rule')}",
+            "- prediction-signal implementation prompts: "
+            + ", ".join(str(item) for item in prediction_signal.get("rdagent_implementation_prompt_paths", [])),
             f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
             f"- signal-ic calculation: pyqlib ({signal_ic.get('ic_calculation_authority')})",
             "- signal-ic metrics: " + ", ".join(str(item) for item in signal_ic.get("metric_fields", [])),
@@ -1465,6 +1489,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "label_alignment_rule",
         "prompt_wording_rule",
         "rdagent_model_output_format_rule",
+        "rdagent_model_task_boundary_rule",
+        "rdagent_implementation_prompt_paths",
         "rdagent_prompt_paths",
         "rdagent_rule",
     ):
@@ -1494,6 +1520,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
         ),
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
+        "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
+        "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
     }
