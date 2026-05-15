@@ -133,6 +133,7 @@ def format_rd_agent_ashare_semantic_context(
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
+    price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
@@ -174,6 +175,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- execution-price field: {execution_price.get('execution_price_field')}",
             f"- execution frequency: {execution_price.get('execution_frequency')}",
             f"- intraday execution rule: {execution_price.get('intraday_execution_rule')}",
+            f"- price-adjustment authority: pyqlib ({price_adjustment.get('runtime_authority')})",
+            f"- price-adjustment factor field: {price_adjustment.get('factor_field')}",
+            f"- price-adjustment missing factor: {price_adjustment.get('missing_factor_rule')}",
+            f"- price-adjustment adjusted-price mode: {price_adjustment.get('adjusted_price_mode_rule')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
@@ -262,6 +267,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_transaction_cost_model",
         "redefine_suspension_or_tradability_rules",
         "redefine_execution_price_or_frequency",
+        "redefine_price_adjustment_or_order_factor",
         "redefine_trade_unit_or_position_type",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
@@ -317,6 +323,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
+        "price_adjustment_semantics",
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -595,6 +602,56 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload execution_price_semantics must forbid RD-Agent redefinition"
         )
+    price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
+    for key in (
+        "semantic_name",
+        "factor_field",
+        "factor_usage",
+        "missing_factor_rule",
+        "adjusted_price_mode_rule",
+        "extra_quote_factor_rule",
+        "suspension_interaction",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in price_adjustment:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must include {key}"
+            )
+    if price_adjustment.get("semantic_name") != "a_share_price_adjustment_order_factor":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must describe A-share order factor semantics"
+        )
+    if price_adjustment.get("factor_field") != "$factor":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must bind Qlib $factor"
+        )
+    if price_adjustment.get("factor_usage") != (
+        "convert_adjusted_amounts_to_trade_unit_amounts_when_unadjusted_prices_are_used"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must declare factor usage"
+        )
+    if price_adjustment.get("missing_factor_rule") != (
+        "non_suspended_rows_with_missing_factor_use_adjusted_price_mode_and_disable_trade_unit_rounding"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must fail closed on missing factor rule drift"
+        )
+    if price_adjustment.get("adjusted_price_mode_rule") != (
+        "trade_unit_rounding_is_not_supported_when_adjusted_price_mode_is_active"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must declare adjusted-price mode"
+        )
+    if price_adjustment.get("runtime_authority") != "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must name Qlib runtime authority"
+        )
+    if price_adjustment.get("rdagent_rule") != "describe_only_do_not_redefine_price_adjustment_or_order_factor":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_adjustment_semantics must forbid RD-Agent redefinition"
+        )
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     for key in (
         "limit_threshold",
@@ -779,6 +836,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "same_day_sell_policy",
         "suspension_tradability_semantics",
         "execution_price_semantics",
+        "price_adjustment_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
