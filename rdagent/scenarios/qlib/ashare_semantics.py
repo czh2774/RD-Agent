@@ -182,8 +182,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
+            f"- price-limit runtime authority: pyqlib ({price_limit.get('runtime_authority')})",
             f"- price-limit mode: {price_limit.get('price_limit_mode')}",
+            "- price-limit flag fields: " + ", ".join(str(item) for item in price_limit.get("limit_flag_fields", [])),
+            f"- price-limit buy rule: {price_limit.get('buy_limit_rule')}",
+            f"- price-limit sell rule: {price_limit.get('sell_limit_rule')}",
             f"- price-limit fallback: {price_limit.get('board_fallback_policy')}",
+            f"- price-limit fallback authority: {price_limit.get('fallback_authority_rule')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
             f"- round-lot authority: pyqlib ({order_unit.get('trade_unit')} {order_unit.get('amount_unit')})",
@@ -269,6 +274,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_execution_price_or_frequency",
         "redefine_price_adjustment_or_order_factor",
         "redefine_trade_unit_or_position_type",
+        "redefine_price_limit_thresholds_or_authoritative_fields",
+        "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
         "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -658,26 +665,90 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_limit_mode",
         "authoritative_limit_fields",
         "field_authority",
+        "semantic_name",
+        "limit_flag_fields",
+        "limit_flag_meaning",
+        "buy_limit_rule",
+        "sell_limit_rule",
         "missing_authoritative_fields",
+        "strict_mode_missing_fields_rule",
         "board_fallback_policy",
+        "fallback_authority_rule",
         "board_limit_thresholds",
+        "runtime_authority",
         "rdagent_rule",
     ):
         if key not in price_limit:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload price_limit_semantics must include {key}"
             )
+    if price_limit.get("semantic_name") != "a_share_price_limit_authority":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must describe A-share price-limit authority"
+        )
     if price_limit.get("limit_threshold") != prompt_market.get("limit_threshold"):
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload price_limit_semantics must match market limit"
+        )
+    if price_limit.get("field_authority") != "provider_up_down_limit_fields":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must use provider field authority"
         )
     if price_limit.get("authoritative_limit_fields") != prompt_market.get("authoritative_limit_fields"):
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload price_limit_semantics must match market fields"
         )
+    if price_limit.get("authoritative_limit_fields") != ["$up_limit", "$down_limit"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must bind provider up/down fields"
+        )
+    if price_limit.get("limit_flag_fields") != ["limit_buy", "limit_sell"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must expose limit flag fields"
+        )
+    if price_limit.get("limit_flag_meaning") != "true_flags_mark_direction_not_tradable":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare limit flag meaning"
+        )
+    if price_limit.get("buy_limit_rule") != "buy_price_at_or_above_up_limit_or_suspended_sets_limit_buy":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare buy limit rule"
+        )
+    if price_limit.get("sell_limit_rule") != "sell_price_at_or_below_down_limit_or_suspended_sets_limit_sell":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare sell limit rule"
+        )
     if price_limit.get("price_limit_mode") not in {"strict", "auto"}:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare strict or auto mode"
+        )
+    if price_limit.get("missing_authoritative_fields") != (
+        "fail_closed_in_strict_mode_else_qlib_board_fallback_for_legacy_datasets"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare missing field behavior"
+        )
+    if price_limit.get("strict_mode_missing_fields_rule") != (
+        "missing_authoritative_fields_or_non_suspended_bounds_fail_closed"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare strict missing-field rule"
+        )
+    if price_limit.get("board_fallback_policy") != "runtime_compatibility_only_when_authoritative_fields_are_absent":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must keep board fallback bounded"
+        )
+    if price_limit.get("fallback_authority_rule") != (
+        "board_thresholds_are_runtime_compatibility_fallback_only_not_primary_authority"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must not promote board fallback"
+        )
+    if price_limit.get("runtime_authority") != (
+        "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must name Qlib runtime authority"
         )
     if price_limit.get("rdagent_rule") != "describe_only_do_not_redefine_price_limit_thresholds_or_fields":
         raise QlibAshareSemanticContractError(
@@ -837,6 +908,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
+        "price_limit_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
