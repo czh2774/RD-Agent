@@ -47,6 +47,8 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
+    QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
     QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
@@ -91,7 +93,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read_prompt_block(prompt_text: str, key: str) -> str:
-    match = re.search(rf"^{re.escape(key)}: \|-\n(?P<body>.*?)(?=^\S|\Z)", prompt_text, flags=re.M | re.S)
+    match = re.search(
+        rf"^{re.escape(key)}: \|-\n(?P<body>.*?)(?=^\S|\Z)",
+        prompt_text,
+        flags=re.M | re.S,
+    )
     if match is None:
         raise AssertionError(f"Missing prompt block: {key}")
     return match.group("body")
@@ -182,7 +188,10 @@ def _trade_indicator_semantics() -> dict[str, Any]:
         "record_authority": "qlib.backtest.report.Indicator.record",
         "order_indicator_state": "Indicator.order_indicator",
         "trade_indicator_state": "Indicator.trade_indicator",
-        "history_state": ["Indicator.order_indicator_his", "Indicator.trade_indicator_his"],
+        "history_state": [
+            "Indicator.order_indicator_his",
+            "Indicator.trade_indicator_his",
+        ],
         "order_metric_fields": [
             "amount",
             "inner_amount",
@@ -345,6 +354,10 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
         "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
+        "rdagent_model_prompt_example_boundary_rule": QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE,
+        "rdagent_model_prompt_forbidden_model_type_literals": list(
+            QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS
+        ),
         "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
         "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
@@ -414,7 +427,13 @@ def _portfolio_risk_semantics() -> dict[str, Any]:
         "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
         "excess_without_cost_rule": "report_return_minus_benchmark",
         "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
-        "risk_metric_fields": ["mean", "std", "annualized_return", "information_ratio", "max_drawdown"],
+        "risk_metric_fields": [
+            "mean",
+            "std",
+            "annualized_return",
+            "information_ratio",
+            "max_drawdown",
+        ],
         "default_accumulation_mode": "sum",
         "supported_accumulation_modes": ["sum", "product"],
         "sum_mode_rule": "qlib_sum_mode_uses_arithmetic_cumulative_return_not_geometric_compounding",
@@ -534,7 +553,12 @@ def _universe_benchmark_binding_semantics() -> dict[str, Any]:
         "market_universe_rule": "csi300_template_market_selects_instruments_only",
         "benchmark_rule": "SH000300_template_benchmark_is_portfolio_excess_return_baseline_only",
         "separation_rule": "market_universe_membership_and_benchmark_return_series_are_not_substitutable",
-        "forbidden_template_values": ["all_a", "all", "SH000300_as_market", "csi300_as_benchmark"],
+        "forbidden_template_values": [
+            "all_a",
+            "all",
+            "SH000300_as_market",
+            "csi300_as_benchmark",
+        ],
         "rdagent_template_paths": list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS),
         "rdagent_rule": "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing",
     }
@@ -816,7 +840,10 @@ def _valid_contract() -> dict[str, Any]:
                         "board": "chinext_registration_sensitive",
                         "effective_start": "2020-08-24",
                     },
-                    {"match": "BJ*|SH8*|SH4*|SH9*|SZ8*|SZ4*|SZ9*", "board": "beijing_stock_exchange"},
+                    {
+                        "match": "BJ*|SH8*|SH4*|SH9*|SZ8*|SZ4*|SZ9*",
+                        "board": "beijing_stock_exchange",
+                    },
                     {"match": "fallback", "board": "main_board"},
                 ],
                 "price_limit_dependency": "board_identity_is_runtime_fallback_only_when_authoritative_limit_fields_absent",
@@ -863,7 +890,11 @@ def _valid_contract() -> dict[str, Any]:
                 "semantic_name": "a_share_transaction_cost_structure",
                 "cost_model_scope": "qlib_runtime_execution_only",
                 "buy_cost_components": ["commission", "minimum_commission_floor"],
-                "sell_cost_components": ["commission", "stamp_tax", "minimum_commission_floor"],
+                "sell_cost_components": [
+                    "commission",
+                    "stamp_tax",
+                    "minimum_commission_floor",
+                ],
                 "minimum_fee_rule": "commission_floor_applies_to_nonzero_trade_value",
                 "zero_trade_rule": "zero_trade_value_has_zero_cost",
                 "market_impact_rule": "optional_impact_cost_is_added_by_runtime_execution",
@@ -1177,7 +1208,9 @@ def _install_qlib_contract_stub(monkeypatch: pytest.MonkeyPatch, contract: dict[
     monkeypatch.setitem(sys.modules, "qlib.backtest.ashare_semantics", ashare_module)
 
 
-def test_load_qlib_ashare_contract_consumes_pyqlib_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_qlib_ashare_contract_consumes_pyqlib_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _install_qlib_contract_stub(monkeypatch, _valid_contract())
 
     contract = load_qlib_ashare_contract()
@@ -1478,8 +1511,14 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert list(QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS) == portfolio["rdagent_feedback_metric_paths"]
     assert list(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS) == portfolio["rdagent_bandit_metric_paths"]
     assert list(QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS) == portfolio["rdagent_ui_metric_paths"]
-    assert list(QLIB_ASHARE_PROMPT_METRIC_PATHS) == ["IC", *portfolio["rdagent_prompt_metric_paths"]]
-    assert list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS) == ["IC", *portfolio["rdagent_feedback_metric_paths"]]
+    assert list(QLIB_ASHARE_PROMPT_METRIC_PATHS) == [
+        "IC",
+        *portfolio["rdagent_prompt_metric_paths"],
+    ]
+    assert list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS) == [
+        "IC",
+        *portfolio["rdagent_feedback_metric_paths"],
+    ]
     assert list(QLIB_ASHARE_BANDIT_METRIC_PATHS) == [
         *signal["rdagent_consumed_metric_paths"],
         *portfolio["rdagent_bandit_metric_paths"],
@@ -1489,7 +1528,10 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert list(QLIB_ASHARE_BANDIT_METRIC_PATHS) == feedback["bandit_metric_paths"]
     assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC == feedback["feedback_primary_metric"]
     assert QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME == feedback["derived_bandit_utility_name"]
-    assert list(QLIB_ASHARE_UI_SELECTED_METRICS) == ["IC", *portfolio["rdagent_ui_metric_paths"]]
+    assert list(QLIB_ASHARE_UI_SELECTED_METRICS) == [
+        "IC",
+        *portfolio["rdagent_ui_metric_paths"],
+    ]
     assert QLIB_ASHARE_TEMPLATE_MARKET == binding["template_market_value"]
     assert QLIB_ASHARE_TEMPLATE_BENCHMARK == binding["template_benchmark_value"]
     assert list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS) == binding["rdagent_template_paths"]
@@ -1822,6 +1864,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE in boundary
     assert QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE in boundary
@@ -1946,7 +1989,16 @@ def test_rd_agent_model_benchmark_fixture_uses_qlib_ashare_prediction_signal_sem
         "legacy",
     ):
         assert forbidden not in fixture_text
-    for required in ("qlib", "a-share", "datetime", "instrument", "score", "label0", "pred.pkl", "timeseries"):
+    for required in (
+        "qlib",
+        "a-share",
+        "datetime",
+        "instrument",
+        "score",
+        "label0",
+        "pred.pkl",
+        "timeseries",
+    ):
         assert required in fixture_text
 
     benchmark_source = (REPO_ROOT / "rdagent/app/benchmark/model/eval.py").read_text()
@@ -1988,8 +2040,15 @@ def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_sig
     assert execution_contract["model_type"] == "TimeSeries"
     assert execution_contract["input_tensor_name"] == "feature_window"
     assert execution_contract["input_rank"] == 3
-    assert execution_contract["input_axes"] == ["batch_size", "datetime_window", "feature"]
-    assert execution_contract["required_init_kwargs"] == ["num_features", "num_timesteps"]
+    assert execution_contract["input_axes"] == [
+        "batch_size",
+        "datetime_window",
+        "feature",
+    ]
+    assert execution_contract["required_init_kwargs"] == [
+        "num_features",
+        "num_timesteps",
+    ]
     assert execution_contract["output_shape"] == ["batch_size", 1]
     assert execution_contract["score_head_name"] == "score_head"
     class_names = {node.name for node in reference_ast.body if isinstance(node, ast.ClassDef)}
@@ -1998,7 +2057,10 @@ def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_sig
         node
         for node in reference_ast.body
         if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == execution_contract["model_cls_symbol"] for target in node.targets)
+        and any(
+            isinstance(target, ast.Name) and target.id == execution_contract["model_cls_symbol"]
+            for target in node.targets
+        )
     ]
     assert assignments
     assert isinstance(assignments[0].value, ast.Name)
@@ -2074,11 +2136,24 @@ def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> 
     }
     assert validate_qlib_model_experiment_response(valid_payload)["temporal_alpha_model"]["model_type"] == "TimeSeries"
 
-    for forbidden_model_type in ("Graph", "XGBoost", "TimesSeries", "Tabular or TimeSeries"):
+    for forbidden_model_type in (
+        "Graph",
+        "XGBoost",
+        "TimesSeries",
+        "Tabular or TimeSeries",
+    ):
         invalid_payload = deepcopy(valid_payload)
         invalid_payload["temporal_alpha_model"]["model_type"] = forbidden_model_type
         with pytest.raises(ValueError, match="Qlib A-share model_type"):
             validate_qlib_model_experiment_response(invalid_payload)
+
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+    assert QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE in boundary
+    qlib_prompt = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
+    model_output_prompt = _read_prompt_block(qlib_prompt, "model_experiment_output_format")
+    assert '"model_type": "TimeSeries"' in model_output_prompt
+    for forbidden_literal in QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS:
+        assert forbidden_literal not in model_output_prompt
 
     proposal_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/model_proposal.py").read_text()
     assert "validate_qlib_model_experiment_response(json.loads(response))" in proposal_source
@@ -2256,7 +2331,9 @@ def test_rd_agent_runtime_handoff_keeps_execution_payload_separate_from_prompt_c
     assert handoff["template_runtime_binding"] == _runtime_handoff_template_binding_semantics()
 
 
-def test_legacy_qlib_without_contract_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_legacy_qlib_without_contract_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setitem(sys.modules, "qlib", types.ModuleType("qlib"))
     monkeypatch.setitem(sys.modules, "qlib.backtest", types.ModuleType("qlib.backtest"))
     monkeypatch.setitem(
@@ -3051,6 +3128,26 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_type_boundary_rule_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_prompt_example_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_prompt_example_boundary_rule"
+    ] = "rdagent_qlib_model_prompt_examples_may_use_union_model_type_literals"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_forbidden_model_type_literal_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_prompt_forbidden_model_type_literals"
+    ] = ["Graph", "XGBoost"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_model_implementation_prompt_boundary_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"][
@@ -3133,9 +3230,7 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_identity_
 
 def test_malformed_qlib_prompt_projection_with_legacy_model_benchmark_task_name_fails_closed() -> None:
     contract = _valid_contract()
-    contract["prompt_projection_payload"]["prediction_signal_semantics"][
-        "rdagent_model_benchmark_task_name"
-    ] = "A-DGN"
+    contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_model_benchmark_task_name"] = "A-DGN"
 
     with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
@@ -3164,9 +3259,9 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_evidence_
 
 def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_execution_contract_fails_closed() -> None:
     contract = _valid_contract()
-    contract["prompt_projection_payload"]["prediction_signal_semantics"][
-        "rdagent_model_benchmark_execution_contract"
-    ]["output_shape"] = ["batch_size"]
+    contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_model_benchmark_execution_contract"][
+        "output_shape"
+    ] = ["batch_size"]
 
     with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
@@ -3235,6 +3330,9 @@ def test_rd_agent_prompts_describe_prediction_signal_without_realized_return_cla
     assert "`score` column in `pred.pkl`" in model_output_prompt
     assert "`datetime` and `instrument`" in model_output_prompt
     assert "trained against Qlib-owned LABEL0" in model_output_prompt
+    assert '"model_type": "TimeSeries"' in model_output_prompt
+    for forbidden_literal in QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS:
+        assert forbidden_literal not in model_output_prompt
     assert "node u" not in model_output_prompt
     assert "predicted output for node" not in model_output_prompt
     assert "\\\\hat{y}_u" not in model_output_prompt
@@ -3493,7 +3591,10 @@ def test_malformed_qlib_prompt_projection_without_runtime_template_binding_fails
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]
 
-    with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_template_binding_semantics"):
+    with pytest.raises(
+        QlibAshareSemanticContractError,
+        match="runtime_handoff_template_binding_semantics",
+    ):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -3503,7 +3604,10 @@ def test_malformed_qlib_prompt_projection_with_runtime_template_kwargs_fails_clo
         deepcopy(QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS)
     )
 
-    with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_template_binding_semantics"):
+    with pytest.raises(
+        QlibAshareSemanticContractError,
+        match="runtime_handoff_template_binding_semantics",
+    ):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -3737,7 +3841,9 @@ def test_malformed_qlib_prompt_projection_with_mutable_order_unit_rule_fails_clo
         build_rd_agent_ashare_semantic_context(contract)
 
 
-def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_optional_prompt_context_reports_unavailable_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delitem(sys.modules, "qlib.backtest.ashare_semantics", raising=False)
 
     def unavailable_import(name: str) -> None:
@@ -3755,7 +3861,10 @@ def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytes
 def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() -> None:
     text = format_rd_agent_ashare_semantic_context(build_rd_agent_ashare_semantic_context(_valid_contract()))
     consumed_portfolio_paths = ", ".join(
-        [*QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS, *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS]
+        [
+            *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
+            *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
+        ]
     )
 
     assert "qlib_contract_id: rdagent_qlib_joinquant_ashare_semantic_contract_v1" in text
@@ -3898,6 +4007,13 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"prediction-signal model task boundary: {QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE}" in text
     assert f"prediction-signal model type boundary: {QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE}" in text
     assert (
+        "prediction-signal model prompt example boundary: " f"{QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal prompt forbidden model type literals: "
+        + ", ".join(str(item) for item in QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS)
+    ) in text
+    assert (
         "prediction-signal implementation prompt boundary: " f"{QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE}"
     ) in text
     assert (
@@ -3917,9 +4033,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "prediction-signal benchmark reference code boundary: "
         f"{QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE}"
     ) in text
-    assert (
-        "prediction-signal benchmark identity boundary: " f"{QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE}"
-    ) in text
+    assert ("prediction-signal benchmark identity boundary: " f"{QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE}") in text
     assert f"prediction-signal benchmark task name: {QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME}" in text
     assert (
         "prediction-signal benchmark surfaces: "
@@ -3928,13 +4042,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"prediction-signal benchmark evidence rule: {QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE}" in text
     assert f"prediction-signal benchmark execution contract: {QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT}" in text
     assert (
-        "prediction-signal execution template boundary: "
-        f"{QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE}"
+        "prediction-signal execution template boundary: " f"{QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE}"
     ) in text
-    assert (
-        "prediction-signal one-shot prompt boundary: "
-        f"{QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE}"
-    ) in text
+    assert ("prediction-signal one-shot prompt boundary: " f"{QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE}") in text
     assert (
         "prediction-signal execution surfaces: "
         + ", ".join(str(path) for path in QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS)
