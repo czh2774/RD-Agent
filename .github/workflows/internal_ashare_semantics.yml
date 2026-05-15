@@ -1,0 +1,55 @@
+name: Internal A-share semantics
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "rdagent/scenarios/qlib/ashare_semantics.py"
+      - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
+      - "rdagent/scenarios/qlib/experiment/model_experiment.py"
+      - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
+      - "test/qlib/test_ashare_semantics_contract.py"
+      - ".github/workflows/internal_ashare_semantics.yml"
+  push:
+    branches: [main]
+    paths:
+      - "rdagent/scenarios/qlib/ashare_semantics.py"
+      - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
+      - "rdagent/scenarios/qlib/experiment/model_experiment.py"
+      - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
+      - "test/qlib/test_ashare_semantics_contract.py"
+      - ".github/workflows/internal_ashare_semantics.yml"
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  ashare-qlib-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install focused test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Compile A-share Qlib contract source
+        run: |
+          python -m py_compile \
+            rdagent/scenarios/qlib/ashare_semantics.py \
+            test/qlib/test_ashare_semantics_contract.py
+
+      - name: Run A-share Qlib contract tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pytest -q test/qlib/test_ashare_semantics_contract.py

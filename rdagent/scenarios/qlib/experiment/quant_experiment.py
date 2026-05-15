@@ -20,6 +20,7 @@ from rdagent.components.coder.model_coder.model import (
 )
 from rdagent.core.experiment import Task
 from rdagent.core.scenario import Scenario
+from rdagent.scenarios.qlib.ashare_semantics import append_ashare_semantic_context
 from rdagent.scenarios.qlib.experiment.utils import get_data_folder_intro
 from rdagent.scenarios.qlib.experiment.workspace import QlibFBWorkspace
 from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
@@ -210,4 +211,4 @@ class QlibQuantScenario(Scenario):
                 + model_stdout.strip()
             )
 
-        return stdout
+        return append_ashare_semantic_context(stdout)
