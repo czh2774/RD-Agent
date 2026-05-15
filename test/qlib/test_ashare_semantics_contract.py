@@ -91,6 +91,50 @@ def _account_valuation_semantics() -> dict[str, Any]:
     }
 
 
+def _trade_indicator_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_trade_execution_indicator",
+        "account_indicator_authority": "qlib.backtest.account.Account.update_indicator",
+        "indicator_authority": "qlib.backtest.report.Indicator",
+        "atomic_order_update_authority": "qlib.backtest.report.Indicator.update_order_indicators",
+        "nested_order_aggregation_authority": "qlib.backtest.report.Indicator.agg_order_indicators",
+        "trade_indicator_authority": "qlib.backtest.report.Indicator.cal_trade_indicators",
+        "record_authority": "qlib.backtest.report.Indicator.record",
+        "order_indicator_state": "Indicator.order_indicator",
+        "trade_indicator_state": "Indicator.trade_indicator",
+        "history_state": ["Indicator.order_indicator_his", "Indicator.trade_indicator_his"],
+        "order_metric_fields": [
+            "amount",
+            "inner_amount",
+            "deal_amount",
+            "trade_price",
+            "trade_value",
+            "trade_cost",
+            "trade_dir",
+            "pa",
+            "ffr",
+            "base_price",
+            "base_volume",
+        ],
+        "trade_metric_fields": ["ffr", "pa", "pos", "deal_amount", "value", "count"],
+        "bar_end_rule": "account_update_indicator_runs_after_current_position_valuation_and_portfolio_metrics",
+        "atomic_rule": "atomic_executor_uses_trade_info_to_update_order_indicators",
+        "nested_rule": "non_atomic_executor_aggregates_inner_order_indicators_and_outer_decision",
+        "fulfill_rate_rule": "ffr_equals_deal_amount_reindexed_zero_for_missing_over_order_amount",
+        "price_advantage_rule": "pa_equals_directional_trade_price_over_base_price_minus_one",
+        "positive_rate_rule": "pos_equals_fraction_of_positive_pa",
+        "deal_amount_metric_rule": "deal_amount_metric_sums_absolute_deal_amount",
+        "trade_value_metric_rule": "value_metric_sums_absolute_trade_value",
+        "order_count_rule": "count_metric_counts_order_amount_entries",
+        "weighting_rule": "ffr_and_pa_support_mean_amount_weighted_value_weighted",
+        "base_price_rule": "base_price_uses_exchange_deal_price_with_twap_or_vwap_aggregation",
+        "unsupported_base_price_rule": "non_deal_price_base_price_is_not_supported",
+        "record_rule": "bar_end_records_order_indicator_and_trade_indicator_by_trade_start_time",
+        "portfolio_boundary_rule": "trade_indicators_are_execution_quality_metrics_not_portfolio_return_metrics",
+        "rdagent_rule": "describe_only_do_not_redefine_trade_execution_indicators_or_quality_metrics",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -105,7 +149,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -136,6 +180,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_market_impact_or_cost_ratio",
                 "redefine_account_position_or_cash_mutation_order",
                 "redefine_account_valuation_or_bar_end_refresh",
+                "redefine_trade_execution_indicators_or_quality_metrics",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -167,6 +212,7 @@ def _valid_contract() -> dict[str, Any]:
                 "market_impact_semantics",
                 "account_update_semantics",
                 "account_valuation_semantics",
+                "trade_indicator_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -201,6 +247,7 @@ def _valid_contract() -> dict[str, Any]:
                 "market_impact_semantics",
                 "account_update_semantics",
                 "account_valuation_semantics",
+                "trade_indicator_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -437,6 +484,7 @@ def _valid_contract() -> dict[str, Any]:
             "market_impact_semantics": _market_impact_semantics(),
             "account_update_semantics": _account_update_semantics(),
             "account_valuation_semantics": _account_valuation_semantics(),
+            "trade_indicator_semantics": _trade_indicator_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -585,6 +633,7 @@ def _valid_contract() -> dict[str, Any]:
             "market_impact_semantics",
             "account_update_semantics",
             "account_valuation_semantics",
+            "trade_indicator_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -655,6 +704,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_market_impact_or_cost_ratio" in boundary["rdagent_forbidden_actions"]
     assert "redefine_account_position_or_cash_mutation_order" in boundary["rdagent_forbidden_actions"]
     assert "redefine_account_valuation_or_bar_end_refresh" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_trade_execution_indicators_or_quality_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -668,6 +718,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "market_impact_semantics",
         "account_update_semantics",
         "account_valuation_semantics",
+        "trade_indicator_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -740,6 +791,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["market_impact_semantics"] == _market_impact_semantics()
     assert context["prompt_projection_payload"]["account_update_semantics"] == _account_update_semantics()
     assert context["prompt_projection_payload"]["account_valuation_semantics"] == _account_valuation_semantics()
+    assert context["prompt_projection_payload"]["trade_indicator_semantics"] == _trade_indicator_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -1037,6 +1089,14 @@ def test_malformed_qlib_prompt_projection_without_account_valuation_fails_closed
     del contract["prompt_projection_payload"]["account_valuation_semantics"]
 
     with pytest.raises(QlibAshareSemanticContractError, match="account_valuation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_trade_indicator_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["trade_indicator_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trade_indicator_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1416,6 +1476,38 @@ def test_malformed_qlib_prompt_projection_with_mutable_account_valuation_rule_fa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_trade_indicator_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trade_indicator_semantics"][
+        "indicator_authority"
+    ] = "rdagent.execution.Indicator"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trade_indicator_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_trade_metric_fields_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trade_indicator_semantics"]["trade_metric_fields"] = [
+        "return",
+        "turnover",
+        "cost",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trade_indicator_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_trade_indicator_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trade_indicator_semantics"][
+        "portfolio_boundary_rule"
+    ] = "trade_indicators_are_portfolio_return_metrics"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trade_indicator_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -1636,6 +1728,19 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "account-valuation daily sellable release rule: "
         "ashare_day_bar_count_refresh_releases_total_amount_to_sellable_amount"
     ) in text
+    assert "trade-indicator authority: pyqlib (qlib.backtest.report.Indicator)" in text
+    assert "trade-indicator account hook: pyqlib (qlib.backtest.account.Account.update_indicator)" in text
+    assert "trade-indicator metrics: ffr, pa, pos, deal_amount, value, count" in text
+    assert (
+        "trade-indicator fulfill rate rule: " "ffr_equals_deal_amount_reindexed_zero_for_missing_over_order_amount"
+    ) in text
+    assert (
+        "trade-indicator price advantage rule: " "pa_equals_directional_trade_price_over_base_price_minus_one"
+    ) in text
+    assert (
+        "trade-indicator portfolio boundary: "
+        "trade_indicators_are_execution_quality_metrics_not_portfolio_return_metrics"
+    ) in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -1723,7 +1828,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
