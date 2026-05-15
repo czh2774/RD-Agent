@@ -7,6 +7,7 @@ from typing import Any, Mapping
 REQUIRED_QLIB_CONTRACT_ID = "rdagent_qlib_joinquant_ashare_semantic_contract_v1"
 REQUIRED_QLIB_RUNTIME_HANDOFF_ID = "qlib_joinquant_ashare_runtime_handoff_v1"
 REQUIRED_QLIB_PROMPT_PROJECTION_ID = "qlib_joinquant_ashare_prompt_projection_v1"
+REQUIRED_QLIB_PROMPT_PROJECTION_SCHEMA_VERSION = "qlib_ashare_prompt_projection.v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"
 
@@ -61,6 +62,8 @@ def build_rd_agent_ashare_semantic_context(
         "qlib_contract_schema_version": qlib_contract["schema_version"],
         "qlib_contract_fingerprint": evidence_contract["semantic_fingerprint"],
         "qlib_source_component": qlib_contract["source_component"],
+        "prompt_projection_schema_version": prompt_projection_payload["projection_schema_version"],
+        "prompt_projection_kind": prompt_projection_payload["projection_kind"],
         "relationship_boundary": {
             "qlib_role": relationship["qlib_role"],
             "rdagent_role": "research_generation_and_evaluation_context_consumer",
@@ -126,6 +129,7 @@ def format_rd_agent_ashare_semantic_context(
     boundary = _mapping(payload.get("relationship_boundary"))
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
+    settlement = _mapping(prompt_payload.get("settlement_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
     return "\n".join(
@@ -136,6 +140,8 @@ def format_rd_agent_ashare_semantic_context(
             f"- qlib_contract_schema_version: {payload['qlib_contract_schema_version']}",
             f"- qlib_contract_fingerprint: {payload['qlib_contract_fingerprint']}",
             f"- qlib_source_component: {payload['qlib_source_component']}",
+            f"- prompt_projection_schema_version: {payload['prompt_projection_schema_version']}",
+            f"- prompt_projection_kind: {payload['prompt_projection_kind']}",
             f"- rd-agent role: {boundary['rdagent_role']}",
             f"- qlib role: {boundary['qlib_role']}",
             f"- authority rule: {boundary['authority_rule']}",
@@ -143,6 +149,8 @@ def format_rd_agent_ashare_semantic_context(
             f"- market: {market.get('market')} / region={market.get('region')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
+            f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
+            f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
             "- RD-Agent must not redefine: " + ", ".join(str(item) for item in boundary["rdagent_must_not_redefine"]),
             "- prompt projection forbids: " + ", ".join(str(item) for item in forbidden_prompt_fields),
             f"- failure_semantics: {boundary['failure_semantics']}",
@@ -267,6 +275,14 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "pyqlib A-share contract projection_contract must project the semantic fingerprint"
         )
     for key in (
+        "market_semantics.settlement_rule",
+        "settlement_semantics",
+    ):
+        if key not in prompt_projection_fields:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract projection_contract must project A-share settlement field {key}"
+            )
+    for key in (
         "runtime_surfaces.policy_defaults",
         "runtime_surfaces.exchange_kwargs",
         "runtime_surfaces.backtest_kwargs",
@@ -282,9 +298,21 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload must declare the Qlib prompt projection id"
         )
+    if prompt_payload.get("projection_schema_version") != REQUIRED_QLIB_PROMPT_PROJECTION_SCHEMA_VERSION:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must declare the prompt projection schema version"
+        )
+    if prompt_payload.get("projection_kind") != "research_prompt_context_only":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must remain research-prompt-only"
+        )
     if prompt_payload.get("contract_id") != REQUIRED_QLIB_CONTRACT_ID:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload must preserve the contract id"
+        )
+    if prompt_payload.get("contract_schema_version") != "qlib_ashare_semantic_contract.v1":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must preserve the contract schema version"
         )
     if prompt_payload.get("schema_version") != "qlib_ashare_semantic_contract.v1":
         raise QlibAshareSemanticContractError(
@@ -308,6 +336,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "region",
         "trade_unit",
         "position_type",
+        "settlement_rule",
         "limit_threshold",
         "authoritative_limit_fields",
     ):
@@ -315,12 +344,38 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload market_semantics must include {key}"
             )
+    settlement = _mapping(prompt_payload.get("settlement_semantics"))
+    for key in (
+        "settlement_rule",
+        "same_day_sell_policy",
+        "position_type",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in settlement:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload settlement_semantics must include {key}"
+            )
+    if settlement.get("settlement_rule") != prompt_market.get("settlement_rule"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must match market settlement"
+        )
+    if settlement.get("position_type") != prompt_market.get("position_type"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must match market position"
+        )
+    if settlement.get("rdagent_rule") != "describe_only_do_not_redefine_position_or_settlement":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must forbid RD-Agent redefinition"
+        )
     _assert_no_forbidden_prompt_projection_payload(prompt_payload)
 
     market = _mapping(contract.get("market_semantics"))
     for key in (
         "trade_unit",
         "position_type",
+        "settlement_rule",
+        "same_day_sell_policy",
         "limit_threshold",
         "price_limit_modes",
         "authoritative_limit_fields",
@@ -386,7 +441,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     must_not_redefine = contract.get("rdagent_must_not_redefine")
     if not isinstance(must_not_redefine, list):
         raise QlibAshareSemanticContractError("pyqlib A-share contract must list rdagent_must_not_redefine")
-    for key in ("trade_unit", "position_type", "cost_model"):
+    for key in ("trade_unit", "position_type", "settlement_rule", "same_day_sell_policy", "cost_model"):
         if key not in must_not_redefine:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must forbid RD-Agent redefining {key}")
 
