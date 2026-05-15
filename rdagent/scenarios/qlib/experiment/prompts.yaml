@@ -101,7 +101,7 @@ qlib_factor_simulator: |-
   1. generate a new factor table based on the factor values.
   2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. build a portfolio by passing the Qlib prediction signal score through a strategy.
-  4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
+  4. evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown.
 
 qlib_factor_rich_style_description : |-
   ### R&D Agent-Qlib: Automated Quantitative Trading & Iterative Factors Evolution Demo
@@ -229,7 +229,7 @@ qlib_model_simulator: |-
   1. Generate a baseline factor table.
   2. Train the model defined in your class Net to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. Build a portfolio from the Qlib prediction signal score using a specific strategy.
-  4. Evaluate the portfolio's performance, including metrics such as return, IC, max drawdown, and others.
+  4. Evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown.
   5. Iterate on growing the hypothesis to enable model improvements based on performance evaluations and feedback.
 
 qlib_model_rich_style_description: |-

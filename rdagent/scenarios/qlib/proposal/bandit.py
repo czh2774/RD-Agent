@@ -7,6 +7,7 @@ from typing import List, Literal, Tuple
 import numpy as np
 
 from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
 )
@@ -21,7 +22,7 @@ class Metrics:
     arr: float = 0.0
     ir: float = 0.0
     mdd: float = 0.0
-    sharpe: float = 0.0
+    drawdown_adjusted_return: float = 0.0
 
     def as_vector(self) -> np.ndarray:
         return np.array(
@@ -33,7 +34,7 @@ class Metrics:
                 self.arr,
                 self.ir,
                 -self.mdd,
-                self.sharpe,
+                self.drawdown_adjusted_return,
             ]
         )
 
@@ -49,9 +50,18 @@ def extract_metrics_from_experiment(experiment) -> Metrics:
         arr = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0], 0.0)
         ir = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1], 0.0)
         mdd = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2], 1.0)  # Avoid division by zero
-        sharpe = arr / -mdd if mdd != 0 else 0.0
+        drawdown_adjusted_return = arr / abs(mdd) if mdd != 0 else 0.0
 
-        return Metrics(ic=ic, icir=icir, rank_ic=rank_ic, rank_icir=rank_icir, arr=arr, ir=ir, mdd=mdd, sharpe=sharpe)
+        return Metrics(
+            ic=ic,
+            icir=icir,
+            rank_ic=rank_ic,
+            rank_icir=rank_icir,
+            arr=arr,
+            ir=ir,
+            mdd=mdd,
+            **{QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME: drawdown_adjusted_return},
+        )
     except Exception as e:
         print(f"Error extracting metrics: {e}")
         return Metrics()

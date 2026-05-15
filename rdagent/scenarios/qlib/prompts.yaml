@@ -192,8 +192,8 @@ factor_feedback_generation:
     
     When judging the results:
       1. Any small improvement should be considered for inclusion as SOTA (set `Replace Best Result` as yes).
-      2. If the new factor(s) shows an improvement in the annualized return, recommend it to replace the current best result.
-      3. Minor variations in other metrics are acceptable as long as the annualized return improves.
+      2. If the new factor(s) improves the Qlib feedback primary metric 1day.excess_return_with_cost.annualized_return, recommend it to replace the current best result.
+      3. Minor variations in IC or 1day.excess_return_with_cost.max_drawdown are acceptable only when the Qlib feedback primary metric improves.
 
     Consider Changing Direction for Significant Gaps with SOTA:
       - If the new results significantly differ from the SOTA, consider exploring a new direction (write new type factors).
@@ -272,8 +272,8 @@ model_feedback_generation:
 
     # When judging the results:
     1. **Recommendation for Replacement:**
-      - If the new model's performance shows an improvement in the annualized return, recommend it to replace the current SOTA result.
-      - Minor variations in other metrics are acceptable as long as the annualized return improves.
+      - If the new model improves the Qlib feedback primary metric 1day.excess_return_with_cost.annualized_return, recommend it to replace the current SOTA result.
+      - Minor variations in IC or 1day.excess_return_with_cost.max_drawdown are acceptable only when the Qlib feedback primary metric improves.
     2.  Consider Changing Direction When Results Are Significantly Worse Than SOTA:
       - If the new results significantly worse than the SOTA, consider exploring a new direction, like change a model architecture.
 

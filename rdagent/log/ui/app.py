@@ -588,39 +588,6 @@ def research_window():
 
 
 def feedback_window():
-    # st.write(round)
-    # # Check if metric series exists and has the matching round
-    # if state.all_metric_series:
-    #     for metric in state.all_metric_series:
-    #         if metric.name == f"Round {round}":
-    #             # Select specific metrics with cost
-    #             selected_metrics_with_cost = {
-    #                 'IC': float(f"{metric['IC']:.4f}"),
-    #                 'ICIR': float(f"{metric['ICIR']:.4f}"),
-    #                 'Rank IC': float(f"{metric['Rank IC']:.4f}"),
-    #                 'Rank ICIR': float(f"{metric['Rank ICIR']:.4f}"),
-    #                 'ARR': float(f"{metric['1day.excess_return_with_cost.annualized_return']:.4f}"),
-    #                 'IR': float(f"{metric['1day.excess_return_with_cost.information_ratio']:.4f}"),
-    #                 'MDD': float(f"{metric['1day.excess_return_with_cost.max_drawdown']:.4f}"),
-    #                 'Sharpe': float(f"{metric['1day.excess_return_with_cost.annualized_return'] / abs(metric['1day.excess_return_with_cost.max_drawdown']):.4f}")
-    #             }
-    #             st.write("With Cost Metrics:")
-    #             st.write(pd.Series(selected_metrics_with_cost))
-
-    #             # Select specific metrics without cost
-    #             selected_metrics_without_cost = {
-    #                 'IC': float(f"{metric['IC']:.4f}"),
-    #                 'ICIR': float(f"{metric['ICIR']:.4f}"),
-    #                 'Rank IC': float(f"{metric['Rank IC']:.4f}"),
-    #                 'Rank ICIR': float(f"{metric['Rank ICIR']:.4f}"),
-    #                 'ARR': float(f"{metric['1day.excess_return_without_cost.annualized_return']:.4f}"),
-    #                 'IR': float(f"{metric['1day.excess_return_without_cost.information_ratio']:.4f}"),
-    #                 'MDD': float(f"{metric['1day.excess_return_without_cost.max_drawdown']:.4f}"),
-    #                 'Sharpe': float(f"{metric['1day.excess_return_without_cost.annualized_return'] / abs(metric['1day.excess_return_without_cost.max_drawdown']):.4f}")
-    #             }
-    #             st.write("Without Cost Metrics:")
-    #             st.write(pd.Series(selected_metrics_without_cost))
-    #             break
     if isinstance(state.scenario, SIMILAR_SCENARIOS):
         with st.container(border=True):
             st.subheader("Feedback📝", divider="orange", anchor="_feedback")
