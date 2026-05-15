@@ -30,7 +30,7 @@ def _valid_contract() -> dict[str, Any]:
             "relationship_rule": (
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine trade unit, position, execution-price, price-adjustment, "
-                "suspension/tradability, price-limit, settlement, cash/shorting, or cost semantics."
+                "suspension/tradability, price-limit, settlement, cash/shorting, liquidity/capacity, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -56,6 +56,7 @@ def _valid_contract() -> dict[str, Any]:
                 "treat_board_fallback_as_primary_price_limit_authority",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_buying_power_or_shorting_policy",
+                "redefine_liquidity_or_volume_capacity_policy",
                 "redefine_cost_model_or_exchange_kwargs",
                 "treat_research_prompt_projection_as_backtest_authority",
                 "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -110,6 +111,7 @@ def _valid_contract() -> dict[str, Any]:
                 "price_limit_semantics",
                 "settlement_semantics",
                 "cash_constraint_semantics",
+                "liquidity_capacity_semantics",
                 "order_unit_semantics",
             ],
             "rdagent_prompt_forbidden_fields": [
@@ -289,6 +291,21 @@ def _valid_contract() -> dict[str, Any]:
                 "position_cash_authority": "qlib.backtest.position.Position.get_cash",
                 "rdagent_rule": "describe_only_do_not_redefine_cash_or_shorting_policy",
             },
+            "liquidity_capacity_semantics": {
+                "semantic_name": "a_share_volume_capacity_limit",
+                "volume_field": "$volume",
+                "capacity_parameter": "volume_threshold",
+                "capacity_scope": "runtime_handoff_only_when_volume_threshold_is_configured",
+                "default_capacity_rule": "no_prompt_defined_capacity_limit_in_default_joinquant_ashare_contract",
+                "volume_limit_aggregation_rule": "multiple_volume_limits_are_aggregated_by_min",
+                "cumulative_limit_rule": "cum_volume_limits_subtract_dealt_order_amount",
+                "current_limit_rule": "current_volume_limits_use_current_quote_value",
+                "dealt_order_state": "dealt_order_amount",
+                "capacity_clip_rule": "order_deal_amount_is_clipped_to_nonnegative_configured_volume_capacity",
+                "runtime_authority": "qlib.backtest.exchange.Exchange._clip_amount_by_volume",
+                "threshold_parser_authority": "qlib.backtest.exchange.Exchange._get_vol_limit",
+                "rdagent_rule": "describe_only_do_not_redefine_liquidity_or_volume_capacity",
+            },
             "order_unit_semantics": {
                 "semantic_name": "a_share_round_lot",
                 "qlib_parameter": "trade_unit",
@@ -375,6 +392,7 @@ def _valid_contract() -> dict[str, Any]:
             "price_limit_semantics",
             "settlement_semantics",
             "cash_constraint_semantics",
+            "liquidity_capacity_semantics",
             "trade_unit",
             "position_type",
             "settlement_rule",
@@ -429,6 +447,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "treat_board_fallback_as_primary_price_limit_authority" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_liquidity_or_volume_capacity_policy" in boundary["rdagent_forbidden_actions"]
     assert "treat_research_prompt_projection_as_backtest_authority" in boundary["rdagent_forbidden_actions"]
     assert boundary["rdagent_must_not_redefine"] == [
         "instrument_identity_semantics",
@@ -439,6 +458,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "price_limit_semantics",
         "settlement_semantics",
         "cash_constraint_semantics",
+        "liquidity_capacity_semantics",
         "trade_unit",
         "position_type",
         "settlement_rule",
@@ -520,6 +540,13 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["cash_constraint_semantics"]["shorting_policy"]
         == "equity_short_selling_is_not_enabled"
+    )
+    assert (
+        context["prompt_projection_payload"]["liquidity_capacity_semantics"]["capacity_parameter"] == "volume_threshold"
+    )
+    assert (
+        context["prompt_projection_payload"]["liquidity_capacity_semantics"]["runtime_authority"]
+        == "qlib.backtest.exchange.Exchange._clip_amount_by_volume"
     )
     assert context["prompt_projection_payload"]["order_unit_semantics"]["trade_unit"] == 100
     assert (
@@ -618,6 +645,14 @@ def test_malformed_qlib_prompt_projection_without_cash_constraint_fails_closed()
     del contract["prompt_projection_payload"]["cash_constraint_semantics"]
 
     with pytest.raises(QlibAshareSemanticContractError, match="cash_constraint_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_liquidity_capacity_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["liquidity_capacity_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="liquidity_capacity_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -883,6 +918,34 @@ def test_malformed_qlib_prompt_projection_with_mutable_cash_runtime_authority_fa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_capacity_parameter_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["liquidity_capacity_semantics"]["capacity_parameter"] = "prompt_capacity"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="liquidity_capacity_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_capacity_clip_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["liquidity_capacity_semantics"][
+        "capacity_clip_rule"
+    ] = "rdagent_can_assume_full_fill"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="liquidity_capacity_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_capacity_runtime_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["liquidity_capacity_semantics"][
+        "runtime_authority"
+    ] = "rdagent.liquidity.CapacityModel"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="liquidity_capacity_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_order_unit_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["order_unit_semantics"]["rdagent_rule"] = "rdagent_may_override_round_lots"
@@ -975,6 +1038,12 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "cash state: cash" in text
     assert "cash buy rule: buy_orders_are_clipped_by_available_cash_and_transaction_cost" in text
     assert "shorting policy: equity_short_selling_is_not_enabled" in text
+    assert "liquidity capacity authority: pyqlib (qlib.backtest.exchange.Exchange._clip_amount_by_volume)" in text
+    assert "liquidity capacity parameter: volume_threshold" in text
+    assert "liquidity volume field: $volume" in text
+    assert (
+        "liquidity capacity rule: " "order_deal_amount_is_clipped_to_nonnegative_configured_volume_capacity"
+    ) in text
     assert "round-lot authority: pyqlib (100 share)" in text
     assert "round-lot buy rule: round_buy_amount_down_to_trade_unit_after_cash_and_volume_limits" in text
     assert "round-lot sell rule: round_sell_amount_down_to_trade_unit_except_full_liquidation" in text
@@ -982,9 +1051,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, transaction_cost_semantics, "
         "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
-        "price_limit_semantics, settlement_semantics, cash_constraint_semantics, trade_unit, "
-        "position_type, settlement_rule, same_day_sell_policy, price_limit_modes, authoritative_limit_fields, "
-        "board_threshold_fields, cost_model"
+        "price_limit_semantics, settlement_semantics, cash_constraint_semantics, "
+        "liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, same_day_sell_policy, "
+        "price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
