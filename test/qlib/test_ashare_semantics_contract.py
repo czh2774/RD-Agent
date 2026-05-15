@@ -32,6 +32,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
+    QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
@@ -334,6 +335,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
         "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
+        "rdagent_model_loader_boundary_rule": QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1796,6 +1798,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE in boundary
     assert QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
 
     model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
@@ -1806,6 +1809,11 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert "build_qlib_ashare_model_task_output_boundary" in proposal_source
     assert "model_output_boundary=model_output_boundary" in proposal_source
 
+    loader_source = (REPO_ROOT / "rdagent/components/coder/model_coder/task_loader.py").read_text()
+    assert "build_qlib_ashare_model_task_output_boundary" in loader_source
+    assert "model_output_boundary = build_qlib_ashare_model_task_output_boundary()" in loader_source
+    assert "model_output_boundary=model_output_boundary" in loader_source
+
     coder_prompt = (REPO_ROOT / "rdagent/components/coder/model_coder/prompts.yaml").read_text()
     assert "{{ model_information_str }}" in coder_prompt
     for relative_path in QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS:
@@ -1813,6 +1821,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
 
     workflow = (REPO_ROOT / ".github/workflows/internal_ashare_semantics.yml").read_text()
     assert "rdagent/components/coder/model_coder/model.py" in workflow
+    assert "rdagent/components/coder/model_coder/task_loader.py" in workflow
     assert "rdagent/components/coder/model_coder/prompts.yaml" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_proposal.py" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_semantics.py" in workflow
@@ -2839,6 +2848,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_formulation_prompt_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_loader_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_loader_boundary_rule"
+    ] = "rdagent_qlib_model_loaders_may_emit_loaded_model_tasks_without_prediction_signal_boundary"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3543,6 +3562,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "prediction-signal formulation prompt boundary: " f"{QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE}"
     ) in text
+    assert f"prediction-signal model loader boundary: {QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE}" in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text
     assert (

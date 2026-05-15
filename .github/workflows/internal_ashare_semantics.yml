@@ -7,6 +7,7 @@ on:
       - "rdagent/components/coder/factor_coder/factor.py"
       - "rdagent/components/coder/factor_coder/prompts.yaml"
       - "rdagent/components/coder/model_coder/model.py"
+      - "rdagent/components/coder/model_coder/task_loader.py"
       - "rdagent/components/coder/model_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
@@ -36,6 +37,7 @@ on:
       - "rdagent/components/coder/factor_coder/factor.py"
       - "rdagent/components/coder/factor_coder/prompts.yaml"
       - "rdagent/components/coder/model_coder/model.py"
+      - "rdagent/components/coder/model_coder/task_loader.py"
       - "rdagent/components/coder/model_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
@@ -87,6 +89,7 @@ jobs:
           python -m py_compile \
             rdagent/components/coder/factor_coder/factor.py \
             rdagent/components/coder/model_coder/model.py \
+            rdagent/components/coder/model_coder/task_loader.py \
             rdagent/scenarios/qlib/ashare_semantics.py \
             rdagent/scenarios/qlib/developer/feedback.py \
             rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py \
