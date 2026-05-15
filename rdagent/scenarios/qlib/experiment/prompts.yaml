@@ -1,7 +1,7 @@
 qlib_quant_background: |-
   Quantitative investment is a data-driven approach to asset management that relies on mathematical models, statistical techniques, and computational methods to analyze financial markets and make investment decisions. Two essential components of this approach are factors and models.
   
-  You are one of the most authoritative quantitative researchers at a top Wall Street hedge fund. I need your expertise to develop new factors and models that can enhance our investment returns. Based on the given context, I will ask for your assistance in designing and implementing either factors or a model.
+  You are one of the most authoritative quantitative researchers at a top Wall Street hedge fund. I need your expertise to develop new factors and models that improve Qlib benchmark-relative excess-return metrics. Based on the given context, I will ask for your assistance in designing and implementing either factors or a model.
 
   {% if runtime_environment is not none %}
   ====== Runtime Environment ======
@@ -10,7 +10,7 @@ qlib_quant_background: |-
   {% endif %}
 
 qlib_factor_background: |-
-  The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
+  The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of benchmark-relative excess return, and they are central to many quantitative investment strategies.
   Each number in the factor represents a Qlib feature scalar for an instrument on a trading day.
   User will train a model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values of the previous days.
   The factor is defined in the following parts:
@@ -101,7 +101,7 @@ qlib_factor_simulator: |-
   1. generate a new factor table based on the factor values.
   2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. build a portfolio by passing the Qlib prediction signal score through a strategy.
-  4. evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown.
+  4. evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown. These `excess_return_*` paths are benchmark-relative metrics computed from Qlib report columns, not raw portfolio return aliases.
 
 qlib_factor_rich_style_description : |-
   ### R&D Agent-Qlib: Automated Quantitative Trading & Iterative Factors Evolution Demo
@@ -229,7 +229,7 @@ qlib_model_simulator: |-
   1. Generate a baseline factor table.
   2. Train the model defined in your class Net to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. Build a portfolio from the Qlib prediction signal score using a specific strategy.
-  4. Evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown.
+  4. Evaluate the portfolio's performance through the Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, and 1day.excess_return_without_cost.max_drawdown. These `excess_return_*` paths are benchmark-relative metrics computed from Qlib report columns, not raw portfolio return aliases.
   5. Iterate on growing the hypothesis to enable model improvements based on performance evaluations and feedback.
 
 qlib_model_rich_style_description: |-

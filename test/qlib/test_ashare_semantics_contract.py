@@ -11,6 +11,9 @@ import pytest
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
+    QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
+    QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
     QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS,
@@ -390,6 +393,34 @@ def _feedback_metric_semantics() -> dict[str, Any]:
     }
 
 
+def _excess_return_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_benchmark_relative_excess_return",
+        "benchmark_dependency": "benchmark_return_semantics",
+        "portfolio_risk_dependency": "portfolio_risk_semantics",
+        "report_column_authority": "qlib.backtest.report.PortfolioMetrics",
+        "risk_record_authority": "qlib.workflow.record_temp.PortAnaRecord",
+        "report_graph_authority": "qlib.contrib.report.analysis_position.report._calculate_report_data",
+        "risk_graph_authority": "qlib.contrib.report.analysis_position.risk_analysis._get_risk_analysis_data_with_report",
+        "online_analysis_authority": "qlib.contrib.online.operator",
+        "user_analysis_authority": "qlib.contrib.online.user",
+        "required_report_columns": ["return", "bench", "cost"],
+        "without_cost_field": "excess_return_without_cost",
+        "with_cost_field": "excess_return_with_cost",
+        "without_cost_formula": "return - bench",
+        "with_cost_formula": "return - bench - cost",
+        "cumulative_without_cost_field": "cum_ex_return_wo_cost",
+        "cumulative_with_cost_field": "cum_ex_return_w_cost",
+        "cost_source": "reported_cost_column_from_trade_indicator_semantics",
+        "benchmark_source": "reported_bench_column_from_benchmark_return_semantics",
+        "metric_path_without_cost": QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
+        "metric_path_with_cost": QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
+        "rdagent_prompt_rule": "generated_research_must_report_benchmark_relative_excess_return_not_raw_return",
+        "forbidden_substitutions": list(QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS),
+        "rdagent_rule": "describe_only_do_not_redefine_benchmark_relative_excess_return",
+    }
+
+
 def _benchmark_return_semantics() -> dict[str, Any]:
     return {
         "semantic_name": "a_share_benchmark_return_series",
@@ -501,7 +532,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, feedback metric consumption, benchmark return, universe/benchmark binding, runtime handoff template binding, research data-source, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, benchmark-relative excess return, feedback metric consumption, benchmark return, universe/benchmark binding, runtime handoff template binding, research data-source, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -539,6 +570,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_prediction_signal_score_or_return_realization",
                 "redefine_signal_ic_or_rank_ic_metrics",
                 "redefine_portfolio_risk_analysis_metrics",
+                "redefine_benchmark_relative_excess_return_or_cost_treatment",
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
@@ -582,6 +614,7 @@ def _valid_contract() -> dict[str, Any]:
                 "prediction_signal_semantics",
                 "signal_ic_semantics",
                 "portfolio_risk_semantics",
+                "excess_return_semantics",
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
@@ -628,6 +661,7 @@ def _valid_contract() -> dict[str, Any]:
                 "prediction_signal_semantics",
                 "signal_ic_semantics",
                 "portfolio_risk_semantics",
+                "excess_return_semantics",
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
@@ -876,6 +910,7 @@ def _valid_contract() -> dict[str, Any]:
             "prediction_signal_semantics": _prediction_signal_semantics(),
             "signal_ic_semantics": _signal_ic_semantics(),
             "portfolio_risk_semantics": _portfolio_risk_semantics(),
+            "excess_return_semantics": _excess_return_semantics(),
             "feedback_metric_semantics": _feedback_metric_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
             "universe_benchmark_binding_semantics": _universe_benchmark_binding_semantics(),
@@ -1031,6 +1066,7 @@ def _valid_contract() -> dict[str, Any]:
             "prediction_signal_semantics",
             "signal_ic_semantics",
             "portfolio_risk_semantics",
+            "excess_return_semantics",
             "feedback_metric_semantics",
             "benchmark_return_semantics",
             "universe_benchmark_binding_semantics",
@@ -1113,6 +1149,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_prediction_signal_score_or_return_realization" in boundary["rdagent_forbidden_actions"]
     assert "redefine_signal_ic_or_rank_ic_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_portfolio_risk_analysis_metrics" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_benchmark_relative_excess_return_or_cost_treatment" in boundary["rdagent_forbidden_actions"]
     assert (
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric"
         in boundary["rdagent_forbidden_actions"]
@@ -1147,6 +1184,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "excess_return_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
@@ -1231,6 +1269,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["prediction_signal_semantics"] == _prediction_signal_semantics()
     assert context["prompt_projection_payload"]["signal_ic_semantics"] == _signal_ic_semantics()
     assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
+    assert context["prompt_projection_payload"]["excess_return_semantics"] == _excess_return_semantics()
     assert context["prompt_projection_payload"]["feedback_metric_semantics"] == _feedback_metric_semantics()
     assert context["prompt_projection_payload"]["benchmark_return_semantics"] == _benchmark_return_semantics()
     assert (
@@ -1474,9 +1513,31 @@ def test_rd_agent_feedback_metric_prompts_use_exact_qlib_paths_without_sharpe_al
         "Qlib-owned prompt metric paths IC, 1day.excess_return_without_cost.annualized_return, "
         "and 1day.excess_return_without_cost.max_drawdown"
     ) in combined
-    assert "Qlib feedback primary metric 1day.excess_return_with_cost.annualized_return" in combined
+    assert (
+        "Qlib benchmark-relative feedback primary metric " "1day.excess_return_with_cost.annualized_return"
+    ) in combined
     assert "sharpe ratio" not in combined.lower()
     assert "return, sharpe ratio, max drawdown, and so on" not in combined
+
+
+def test_rd_agent_prompts_describe_excess_return_as_benchmark_relative_not_raw_return() -> None:
+    combined = "\n".join(
+        (REPO_ROOT / path).read_text()
+        for path in (
+            "rdagent/scenarios/qlib/experiment/prompts.yaml",
+            "rdagent/scenarios/qlib/prompts.yaml",
+        )
+    )
+
+    assert "Qlib benchmark-relative excess-return metrics" in combined
+    assert "sources of benchmark-relative excess return" in combined
+    assert (
+        "These `excess_return_*` paths are benchmark-relative metrics computed from Qlib report columns, "
+        "not raw portfolio return aliases."
+    ) in combined
+    assert "enhance our investment returns" not in combined
+    assert "sources of excess returns" not in combined
+    assert "raw portfolio return aliases" in combined
 
 
 def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_alias(
@@ -2428,6 +2489,42 @@ def test_malformed_qlib_prompt_projection_with_mutable_feedback_derived_utility_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_excess_return_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["excess_return_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="excess_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_raw_return_as_excess_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["excess_return_semantics"]["without_cost_formula"] = "return"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="excess_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_excess_cost_column_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["excess_return_semantics"]["required_report_columns"] = ["return", "bench"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="excess_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_prompt_defined_excess_formula_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["excess_return_semantics"]["forbidden_substitutions"] = [
+        "raw_return_as_excess_return",
+        "market_universe_as_benchmark_return",
+        "with_cost_metric_without_report_cost_column",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="excess_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_benchmark_return_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["benchmark_return_semantics"]
@@ -2863,6 +2960,19 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "portfolio-risk max drawdown rule: "
         "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max"
     ) in text
+    assert "excess-return authority: pyqlib (qlib.backtest.report.PortfolioMetrics)" in text
+    assert "excess-return without-cost formula: return - bench" in text
+    assert "excess-return with-cost formula: return - bench - cost" in text
+    assert (
+        "excess-return metric paths: "
+        f"{QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST}, {QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST}"
+    ) in text
+    assert (
+        "excess-return forbidden substitutions: " f"{', '.join(QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS)}"
+    ) in text
+    assert (
+        "excess-return prompt rule: " "generated_research_must_report_benchmark_relative_excess_return_not_raw_return"
+    ) in text
     assert "feedback-metric authority: pyqlib (qlib.workflow.record_temp.PortAnaRecord)" in text
     assert f"feedback-metric primary: {QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC}" in text
     assert f"feedback-metric paths: {', '.join(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)}" in text
@@ -2995,7 +3105,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, excess_return_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "

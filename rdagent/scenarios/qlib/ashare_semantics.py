@@ -64,10 +64,12 @@ QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
     "1day.excess_return_without_cost.annualized_return",
     "1day.excess_return_without_cost.max_drawdown",
 )
+QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST = QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS[0]
 QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS = (
     "1day.excess_return_with_cost.annualized_return",
     "1day.excess_return_with_cost.max_drawdown",
 )
+QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST = QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS[0]
 QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS = (
     "1day.excess_return_with_cost.annualized_return",
     "1day.excess_return_with_cost.information_ratio",
@@ -93,6 +95,12 @@ QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
     "rdagent/scenarios/qlib/prompts.yaml",
     "rdagent/log/ui/app.py",
+)
+QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS = (
+    "raw_return_as_excess_return",
+    "market_universe_as_benchmark_return",
+    "with_cost_metric_without_report_cost_column",
+    "prompt_defined_cost_or_benchmark_formula",
 )
 
 
@@ -228,6 +236,7 @@ def format_rd_agent_ashare_semantic_context(
     prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
+    excess_return = _mapping(prompt_payload.get("excess_return_semantics"))
     feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
@@ -356,6 +365,21 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_ui_metric_paths", [])),
             f"- portfolio-risk annualization scaler: {portfolio_risk.get('day_annualization_scaler')}",
             f"- portfolio-risk max drawdown rule: {portfolio_risk.get('max_drawdown_rule')}",
+            f"- excess-return authority: pyqlib ({excess_return.get('report_column_authority')})",
+            f"- excess-return without-cost formula: {excess_return.get('without_cost_formula')}",
+            f"- excess-return with-cost formula: {excess_return.get('with_cost_formula')}",
+            "- excess-return metric paths: "
+            + ", ".join(
+                str(item)
+                for item in (
+                    excess_return.get("metric_path_without_cost"),
+                    excess_return.get("metric_path_with_cost"),
+                )
+                if item
+            ),
+            "- excess-return forbidden substitutions: "
+            + ", ".join(str(item) for item in excess_return.get("forbidden_substitutions", [])),
+            f"- excess-return prompt rule: {excess_return.get('rdagent_prompt_rule')}",
             f"- feedback-metric authority: pyqlib ({feedback_metric.get('portfolio_metric_authority')})",
             f"- feedback-metric primary: {feedback_metric.get('feedback_primary_metric')}",
             "- feedback-metric paths: "
@@ -536,6 +560,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_prediction_signal_score_or_return_realization",
         "redefine_signal_ic_or_rank_ic_metrics",
         "redefine_portfolio_risk_analysis_metrics",
+        "redefine_benchmark_relative_excess_return_or_cost_treatment",
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
@@ -595,6 +620,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "excess_return_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
@@ -639,6 +665,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "excess_return_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
@@ -1596,6 +1623,66 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if portfolio_risk.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"portfolio_risk_semantics must preserve {key}"
+            )
+    excess_return = _mapping(prompt_payload.get("excess_return_semantics"))
+    for key in (
+        "semantic_name",
+        "benchmark_dependency",
+        "portfolio_risk_dependency",
+        "report_column_authority",
+        "risk_record_authority",
+        "report_graph_authority",
+        "risk_graph_authority",
+        "online_analysis_authority",
+        "user_analysis_authority",
+        "required_report_columns",
+        "without_cost_field",
+        "with_cost_field",
+        "without_cost_formula",
+        "with_cost_formula",
+        "cumulative_without_cost_field",
+        "cumulative_with_cost_field",
+        "cost_source",
+        "benchmark_source",
+        "metric_path_without_cost",
+        "metric_path_with_cost",
+        "rdagent_prompt_rule",
+        "forbidden_substitutions",
+        "rdagent_rule",
+    ):
+        if key not in excess_return:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload excess_return_semantics must include {key}"
+            )
+    expected_excess_return_values = {
+        "semantic_name": "a_share_benchmark_relative_excess_return",
+        "benchmark_dependency": "benchmark_return_semantics",
+        "portfolio_risk_dependency": "portfolio_risk_semantics",
+        "report_column_authority": "qlib.backtest.report.PortfolioMetrics",
+        "risk_record_authority": "qlib.workflow.record_temp.PortAnaRecord",
+        "report_graph_authority": "qlib.contrib.report.analysis_position.report._calculate_report_data",
+        "risk_graph_authority": "qlib.contrib.report.analysis_position.risk_analysis._get_risk_analysis_data_with_report",
+        "online_analysis_authority": "qlib.contrib.online.operator",
+        "user_analysis_authority": "qlib.contrib.online.user",
+        "required_report_columns": ["return", "bench", "cost"],
+        "without_cost_field": "excess_return_without_cost",
+        "with_cost_field": "excess_return_with_cost",
+        "without_cost_formula": "return - bench",
+        "with_cost_formula": "return - bench - cost",
+        "cumulative_without_cost_field": "cum_ex_return_wo_cost",
+        "cumulative_with_cost_field": "cum_ex_return_w_cost",
+        "cost_source": "reported_cost_column_from_trade_indicator_semantics",
+        "benchmark_source": "reported_bench_column_from_benchmark_return_semantics",
+        "metric_path_without_cost": QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
+        "metric_path_with_cost": QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
+        "rdagent_prompt_rule": "generated_research_must_report_benchmark_relative_excess_return_not_raw_return",
+        "forbidden_substitutions": list(QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS),
+        "rdagent_rule": "describe_only_do_not_redefine_benchmark_relative_excess_return",
+    }
+    for key, expected_value in expected_excess_return_values.items():
+        if excess_return.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"excess_return_semantics must preserve {key}"
             )
     feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     for key in (
@@ -2594,6 +2681,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "supervised_label_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "excess_return_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
