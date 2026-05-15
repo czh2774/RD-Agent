@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import sys
 import types
@@ -32,6 +33,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
+    QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
@@ -336,6 +338,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
         "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_loader_boundary_rule": QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
+        "rdagent_model_json_loader_boundary_rule": QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1799,6 +1802,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
 
     model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
@@ -1825,6 +1829,52 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert "rdagent/components/coder/model_coder/prompts.yaml" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_proposal.py" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_semantics.py" in workflow
+
+
+def test_rd_agent_model_json_loader_attaches_qlib_prediction_signal_boundary_to_serialized_tasks(
+    tmp_path: Path,
+) -> None:
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+    assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
+
+    loader_source = (REPO_ROOT / "rdagent/components/loader/task_loader.py").read_text()
+    assert "model_output_boundary: str | None = None" in loader_source
+    assert "self.model_output_boundary = model_output_boundary" in loader_source
+    assert 'model_data.get("training_hyperparameters", {})' in loader_source
+    assert "model_output_boundary=self.model_output_boundary" in loader_source
+
+    benchmark_source = (REPO_ROOT / "rdagent/app/benchmark/model/eval.py").read_text()
+    assert "build_qlib_ashare_model_task_output_boundary" in benchmark_source
+    assert "model_output_boundary=build_qlib_ashare_model_task_output_boundary()" in benchmark_source
+
+    workflow = (REPO_ROOT / ".github/workflows/internal_ashare_semantics.yml").read_text()
+    assert "rdagent/components/loader/task_loader.py" in workflow
+    assert "rdagent/app/benchmark/model/eval.py" in workflow
+
+    json_path = tmp_path / "model_dict.json"
+    json_path.write_text(
+        json.dumps(
+            {
+                "serialized_alpha": {
+                    "description": "Serialized model task.",
+                    "formulation": r"\hat{y}_{t,i}=f(x_{t-19:t,i})",
+                    "variables": {"x": "daily fields"},
+                    "model_type": "TimeSeries",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from rdagent.components.loader.task_loader import ModelTaskLoaderJson
+
+    tasks = ModelTaskLoaderJson(str(json_path), model_output_boundary=boundary).load()
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task.model_output_boundary == boundary
+    assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in task.model_output_boundary
+    assert task.hyperparameters == {}
+    assert task.training_hyperparameters == {}
 
 
 def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> None:
@@ -2858,6 +2908,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_loader_boundary_fai
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_json_loader_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_json_loader_boundary_rule"
+    ] = "rdagent_qlib_serialized_model_task_loaders_may_compose_qlib_model_experiments_without_boundary"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3563,6 +3623,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "prediction-signal formulation prompt boundary: " f"{QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE}"
     ) in text
     assert f"prediction-signal model loader boundary: {QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE}" in text
+    assert (
+        "prediction-signal serialized model loader boundary: " f"{QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE}"
+    ) in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text
     assert (

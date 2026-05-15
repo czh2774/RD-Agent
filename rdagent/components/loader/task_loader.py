@@ -41,9 +41,10 @@ class ModelTaskLoaderJson(ModelTaskLoader):
 
     #     return [model_impl_task]
 
-    def __init__(self, json_uri: str) -> None:
+    def __init__(self, json_uri: str, *, model_output_boundary: str | None = None) -> None:
         super().__init__()
         self.json_uri = json_uri
+        self.model_output_boundary = model_output_boundary
 
     def load(self, *argT, **kwargs) -> Sequence[ModelTask]:
         # json is supposed to be in the format of {model_name: dict{model_data}}
@@ -76,7 +77,9 @@ class ModelTaskLoaderJson(ModelTaskLoader):
                 variables=model_data["variables"],
                 model_type=model_data["model_type"],
                 architecture="",
-                hyperparameters="",
+                hyperparameters=model_data.get("hyperparameters", {}),
+                training_hyperparameters=model_data.get("training_hyperparameters", {}),
+                model_output_boundary=self.model_output_boundary,
             )
             model_impl_task_list.append(model_impl_task)
         return model_impl_task_list

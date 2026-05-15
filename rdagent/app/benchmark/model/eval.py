@@ -2,6 +2,9 @@ from pathlib import Path
 
 from rdagent.components.coder.model_coder import ModelCoSTEER
 from rdagent.components.loader.task_loader import ModelTaskLoaderJson, ModelWsLoader
+from rdagent.scenarios.qlib.ashare_semantics import (
+    build_qlib_ashare_model_task_output_boundary,
+)
 from rdagent.scenarios.qlib.experiment.model_experiment import (
     QlibModelExperiment,
     QlibModelScenario,
@@ -14,7 +17,10 @@ if __name__ == "__main__":
     from rdagent.components.coder.model_coder.one_shot import ModelCodeWriter
 
     bench_folder = DIRNAME.parent.parent.parent / "components" / "coder" / "model_coder" / "benchmark"
-    mtl = ModelTaskLoaderJson(str(bench_folder / "model_dict.json"))
+    mtl = ModelTaskLoaderJson(
+        str(bench_folder / "model_dict.json"),
+        model_output_boundary=build_qlib_ashare_model_task_output_boundary(),
+    )
 
     task_l = mtl.load()
 
