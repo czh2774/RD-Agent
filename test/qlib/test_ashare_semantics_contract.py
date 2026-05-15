@@ -26,6 +26,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
+    QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
@@ -314,6 +315,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "prompt_wording_rule": (
             "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
         ),
+        "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
     }
@@ -2636,11 +2638,30 @@ def test_malformed_qlib_prompt_projection_with_mutable_prediction_signal_wording
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_output_format_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_output_format_rule"
+    ] = "rdagent_model_output_format_may_describe_generic_node_predictions"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_rd_agent_prompts_describe_prediction_signal_without_realized_return_claims() -> None:
     combined = "\n".join((REPO_ROOT / path).read_text() for path in QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS)
     experiment_prompt = (REPO_ROOT / "rdagent/scenarios/qlib/experiment/prompts.yaml").read_text()
+    qlib_prompt = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
+    model_output_prompt = _read_prompt_block(qlib_prompt, "model_experiment_output_format")
 
     assert "Qlib prediction signal score for LABEL0" in combined
+    assert "Qlib prediction signal score for LABEL0" in model_output_prompt
+    assert "`score` column in `pred.pkl`" in model_output_prompt
+    assert "`datetime` and `instrument`" in model_output_prompt
+    assert "trained against Qlib-owned LABEL0" in model_output_prompt
+    assert "node u" not in model_output_prompt
+    assert "predicted output for node" not in model_output_prompt
+    assert "\\\\hat{y}_u" not in model_output_prompt
     assert "predicting future returns" not in combined
     assert "predicts the future returns" not in combined
     assert "predicted returns" not in combined
@@ -3292,6 +3313,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "prediction-signal prompt wording: "
         "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
     ) in text
+    assert f"prediction-signal model output format: {QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE}" in text
     assert "signal-ic authority: pyqlib (qlib.workflow.record_temp.SigAnaRecord)" in text
     assert "signal-ic calculation: pyqlib (qlib.contrib.eva.alpha.calc_ic)" in text
     assert "signal-ic metrics: IC, ICIR, Rank IC, Rank ICIR" in text

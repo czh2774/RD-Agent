@@ -75,6 +75,7 @@ QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
     "rdagent/scenarios/qlib/prompts.yaml",
 )
+QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE = "rdagent_model_experiment_output_format_must_describe_prediction_as_score_column_indexed_by_datetime_and_instrument_not_graph_node_output"
 QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
 QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
     "1day.excess_return_without_cost.annualized_return",
@@ -357,6 +358,7 @@ def format_rd_agent_ashare_semantic_context(
             f"- prediction-signal model rule: {prediction_signal.get('model_predict_rule')}",
             f"- prediction-signal ranking rule: {prediction_signal.get('strategy_ranking_rule')}",
             f"- prediction-signal prompt wording: {prediction_signal.get('prompt_wording_rule')}",
+            f"- prediction-signal model output format: {prediction_signal.get('rdagent_model_output_format_rule')}",
             f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
             f"- signal-ic calculation: pyqlib ({signal_ic.get('ic_calculation_authority')})",
             "- signal-ic metrics: " + ", ".join(str(item) for item in signal_ic.get("metric_fields", [])),
@@ -1462,6 +1464,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "missing_signal_rule",
         "label_alignment_rule",
         "prompt_wording_rule",
+        "rdagent_model_output_format_rule",
         "rdagent_prompt_paths",
         "rdagent_rule",
     ):
@@ -1490,6 +1493,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prompt_wording_rule": (
             "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
         ),
+        "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
     }

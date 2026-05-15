@@ -147,13 +147,14 @@ factor_experiment_output_format: |-
 model_experiment_output_format: |-
   So far please only design one model to test the hypothesis! 
   The output should follow JSON format. The schema is as follows (value in training_hyperparameters is a basic setting for reference, you CAN CHANGE depends on the previous training log): 
+  The model output must be a Qlib prediction signal score for LABEL0. Describe `\hat{y}_{t,i}` as the `score` column in `pred.pkl`, indexed by `datetime` and `instrument`; it is not a realized return, guaranteed portfolio return, or graph-node output.
   {
     "model_name (The name of the model)": {
         "description": "A detailed description of the model",
         "formulation": "A LaTeX formula representing the model's formulation",
         "architecture": "A detailed description of the model's architecture, e.g., neural network layers or tree structures",
         "variables": {
-            "\\hat{y}_u": "The predicted output for node u",
+            "\\hat{y}_{t,i}": "Qlib prediction signal score for instrument i at datetime t, saved as the `score` column in `pred.pkl` and trained against Qlib-owned LABEL0",
             "variable_name_2": "Description of variable 2",
             "variable_name_3": "Description of variable 3"
         },
