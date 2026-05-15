@@ -52,6 +52,15 @@ QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/prompts.yaml",
     "rdagent/components/coder/factor_coder/prompts.yaml",
 )
+QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS = (
+    "rdagent/scenarios/qlib/experiment/prompts.yaml",
+    "rdagent/scenarios/qlib/prompts.yaml",
+)
+QLIB_ASHARE_RESEARCH_PERSONA_RULE = (
+    "rdagent_a_share_prompts_must_use_china_a_share_market_context_not_generic_wall_street_persona"
+)
+QLIB_ASHARE_RESEARCH_PERSONA_REQUIRED_CONTEXT = "China A-share quantitative research"
+QLIB_ASHARE_RESEARCH_PERSONA_FORBIDDEN_PROMPTS = ("Wall Street hedge fund", "Wall Street")
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = (
     "$open",
     "$close",
@@ -297,6 +306,7 @@ def build_rd_agent_ashare_semantic_context(
         "prompt_projection_payload": deepcopy(prompt_projection_payload),
         "prompt_rules": [
             "Use A-share market semantics only from qlib.backtest.ashare_semantics.",
+            "Use Qlib-declared China A-share research persona context; do not substitute a generic cross-market persona.",
             "Render only the Qlib-declared prompt projection; do not expose raw runtime kwargs as prompt authority.",
             "Treat generated factors and models as candidates until Qlib execution and downstream governance evidence exist.",
         ],
@@ -398,6 +408,7 @@ def format_rd_agent_ashare_semantic_context(
     universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
     runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
     research_data_source = _mapping(prompt_payload.get("research_data_source_semantics"))
+    research_persona = _mapping(prompt_payload.get("research_persona_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -620,6 +631,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- benchmark-return field: {benchmark_return.get('benchmark_field_expression')}",
             f"- benchmark-return sample rule: {benchmark_return.get('sample_rule')}",
             f"- benchmark-return report column: {benchmark_return.get('report_column')}",
+            f"- research-persona market context: {research_persona.get('market_context')}",
+            f"- research-persona required context: {research_persona.get('required_prompt_context')}",
+            f"- research-persona rule: {research_persona.get('persona_rule')}",
+            "- research-persona forbidden prompts: "
+            + ", ".join(str(item) for item in research_persona.get("forbidden_prompt_personas", [])),
+            "- research-persona prompt paths: "
+            + ", ".join(str(item) for item in research_persona.get("rdagent_prompt_paths", [])),
             f"- universe-benchmark market value: {universe_benchmark_binding.get('template_market_value')}",
             f"- universe-benchmark benchmark value: {universe_benchmark_binding.get('template_benchmark_value')}",
             f"- universe-benchmark market rule: {universe_benchmark_binding.get('market_universe_rule')}",
@@ -799,6 +817,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
         "redefine_runtime_handoff_or_template_execution_kwargs",
         "redefine_research_data_source_availability_or_imply_unregistered_sources",
+        "redefine_research_persona_or_replace_a_share_market_context",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -859,6 +878,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "universe_benchmark_binding_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
+        "research_persona_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -904,6 +924,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "universe_benchmark_binding_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
+        "research_persona_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -2257,6 +2278,22 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
                 "pyqlib A-share contract prompt_projection_payload "
                 f"research_data_source_semantics must preserve {key}"
             )
+    research_persona = _mapping(prompt_payload.get("research_persona_semantics"))
+    expected_research_persona_values = {
+        "semantic_name": "a_share_research_persona_context",
+        "market_context": "china_a_share",
+        "region_context": "cn",
+        "persona_rule": QLIB_ASHARE_RESEARCH_PERSONA_RULE,
+        "required_prompt_context": QLIB_ASHARE_RESEARCH_PERSONA_REQUIRED_CONTEXT,
+        "forbidden_prompt_personas": list(QLIB_ASHARE_RESEARCH_PERSONA_FORBIDDEN_PROMPTS),
+        "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS),
+        "rdagent_rule": "describe_a_share_research_context_without_cross_market_persona_aliases",
+    }
+    for key, expected_value in expected_research_persona_values.items():
+        if research_persona.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"research_persona_semantics must preserve {key}"
+            )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -3036,6 +3073,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
         "research_data_source_semantics",
+        "research_persona_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",

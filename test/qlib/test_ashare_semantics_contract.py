@@ -82,6 +82,10 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_PROMPT_OBLIGATION_RULE,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS,
+    QLIB_ASHARE_RESEARCH_PERSONA_FORBIDDEN_PROMPTS,
+    QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS,
+    QLIB_ASHARE_RESEARCH_PERSONA_REQUIRED_CONTEXT,
+    QLIB_ASHARE_RESEARCH_PERSONA_RULE,
     QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS,
     QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
     QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS,
@@ -657,6 +661,19 @@ def _research_data_source_semantics() -> dict[str, Any]:
     }
 
 
+def _research_persona_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_research_persona_context",
+        "market_context": "china_a_share",
+        "region_context": "cn",
+        "persona_rule": QLIB_ASHARE_RESEARCH_PERSONA_RULE,
+        "required_prompt_context": QLIB_ASHARE_RESEARCH_PERSONA_REQUIRED_CONTEXT,
+        "forbidden_prompt_personas": list(QLIB_ASHARE_RESEARCH_PERSONA_FORBIDDEN_PROMPTS),
+        "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS),
+        "rdagent_rule": "describe_a_share_research_context_without_cross_market_persona_aliases",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -715,6 +732,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
                 "redefine_runtime_handoff_or_template_execution_kwargs",
                 "redefine_research_data_source_availability_or_imply_unregistered_sources",
+                "redefine_research_persona_or_replace_a_share_market_context",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -759,6 +777,7 @@ def _valid_contract() -> dict[str, Any]:
                 "universe_benchmark_binding_semantics",
                 "runtime_handoff_template_binding_semantics",
                 "research_data_source_semantics",
+                "research_persona_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -806,6 +825,7 @@ def _valid_contract() -> dict[str, Any]:
                 "universe_benchmark_binding_semantics",
                 "runtime_handoff_template_binding_semantics",
                 "research_data_source_semantics",
+                "research_persona_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -1062,6 +1082,7 @@ def _valid_contract() -> dict[str, Any]:
             "universe_benchmark_binding_semantics": _universe_benchmark_binding_semantics(),
             "runtime_handoff_template_binding_semantics": _runtime_handoff_template_binding_prompt_semantics(),
             "research_data_source_semantics": _research_data_source_semantics(),
+            "research_persona_semantics": _research_persona_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -1218,6 +1239,7 @@ def _valid_contract() -> dict[str, Any]:
             "universe_benchmark_binding_semantics",
             "runtime_handoff_template_binding_semantics",
             "research_data_source_semantics",
+            "research_persona_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -1312,6 +1334,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "redefine_research_data_source_availability_or_imply_unregistered_sources"
         in boundary["rdagent_forbidden_actions"]
     )
+    assert "redefine_research_persona_or_replace_a_share_market_context" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -1338,6 +1361,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "universe_benchmark_binding_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
+        "research_persona_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1429,6 +1453,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         == _runtime_handoff_template_binding_prompt_semantics()
     )
     assert context["prompt_projection_payload"]["research_data_source_semantics"] == _research_data_source_semantics()
+    assert context["prompt_projection_payload"]["research_persona_semantics"] == _research_persona_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -1711,6 +1736,17 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
         assert "Do not treat turnover, minute-level high-frequency data" in prompt_text
         assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in prompt_text
         assert "analyst consensus expectation factors" in prompt_text
+
+
+def test_rd_agent_qlib_prompts_use_a_share_research_persona_boundary() -> None:
+    persona = _research_persona_semantics()
+
+    for relative_path in QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS:
+        prompt_text = (REPO_ROOT / relative_path).read_text()
+
+        assert persona["required_prompt_context"] in prompt_text
+        for forbidden_persona in persona["forbidden_prompt_personas"]:
+            assert forbidden_persona not in prompt_text
 
 
 def test_rd_agent_factor_relevance_prompt_applies_qlib_source_boundary_forbidden_defaults() -> None:
@@ -3911,6 +3947,34 @@ def test_malformed_qlib_prompt_projection_without_turnover_research_default_fail
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_research_persona_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["research_persona_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_persona_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_research_persona_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_persona_semantics"][
+        "persona_rule"
+    ] = "rdagent_a_share_prompts_may_use_generic_wall_street_persona"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_persona_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_research_persona_prompt_path_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_persona_semantics"]["rdagent_prompt_paths"] = [
+        "rdagent/scenarios/qlib/prompts.yaml"
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_persona_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -4337,6 +4401,11 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         text
     )
     assert "benchmark-return report column: bench" in text
+    assert "research-persona market context: china_a_share" in text
+    assert f"research-persona required context: {QLIB_ASHARE_RESEARCH_PERSONA_REQUIRED_CONTEXT}" in text
+    assert f"research-persona rule: {QLIB_ASHARE_RESEARCH_PERSONA_RULE}" in text
+    assert ("research-persona forbidden prompts: " + ", ".join(QLIB_ASHARE_RESEARCH_PERSONA_FORBIDDEN_PROMPTS)) in text
+    assert "research-persona prompt paths: " + ", ".join(QLIB_ASHARE_RESEARCH_PERSONA_PROMPT_PATHS) in text
     assert f"universe-benchmark market value: {QLIB_ASHARE_TEMPLATE_MARKET}" in text
     assert f"universe-benchmark benchmark value: {QLIB_ASHARE_TEMPLATE_BENCHMARK}" in text
     assert "universe-benchmark market rule: csi300_template_market_selects_instruments_only" in text
@@ -4459,7 +4528,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, excess_return_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, excess_return_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, research_persona_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "

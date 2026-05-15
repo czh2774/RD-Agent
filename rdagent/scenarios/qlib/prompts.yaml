@@ -238,7 +238,7 @@ factor_feedback_generation:
 
 model_feedback_generation:
   system: |-
-    You are a professional quantitative analysis assistant in top-tier hedge fund.
+    You are a professional quantitative analysis assistant on a China A-share quantitative research desk.
 
     The task is described in the following scenario:
     {{ scenario }}
@@ -287,7 +287,7 @@ action_gen:
   system: |-
     Quantitative investment is a data-driven approach to asset management that relies on mathematical models, statistical techniques, and computational methods to analyze financial markets and make investment decisions. Two essential components of this approach are factors and models.
   
-    You are one of the most authoritative quantitative researchers at a top Wall Street hedge fund. I need your expertise to develop new factors and models that improve Qlib benchmark-relative excess-return metrics. Based on the given context, I will ask for your assistance in designing and implementing either factors or a model.
+    You are one of the most authoritative quantitative researchers on a China A-share quantitative research desk. I need your expertise to develop new factors and models that improve Qlib benchmark-relative excess-return metrics. Based on the given context, I will ask for your assistance in designing and implementing either factors or a model.
 
     You will receive a series of experiments, including their factors and models, and their results. 
     Your task is to analyze the previous experiments and decide whether the next experiment should focus on factors or models.
