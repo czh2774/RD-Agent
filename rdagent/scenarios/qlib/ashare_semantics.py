@@ -130,6 +130,7 @@ def format_rd_agent_ashare_semantic_context(
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
     instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
+    trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
@@ -163,6 +164,11 @@ def format_rd_agent_ashare_semantic_context(
                 for suffix, prefix in sorted(_mapping(instrument_identity.get("accepted_provider_suffixes")).items())
             ),
             f"- board identity authority: pyqlib ({instrument_identity.get('board_classification_authority')})",
+            f"- trading-calendar authority: pyqlib ({trading_calendar.get('calendar_provider_authority')})",
+            f"- trading-calendar locator: pyqlib ({trading_calendar.get('calendar_locator_authority')})",
+            f"- trading-calendar frequency: {trading_calendar.get('calendar_frequency')}",
+            f"- trading-calendar non-trading day rule: {trading_calendar.get('non_trading_day_rule')}",
+            f"- trading-calendar synthetic session rule: {trading_calendar.get('synthetic_session_rule')}",
             f"- transaction-cost authority: pyqlib ({transaction_cost.get('runtime_authority')})",
             "- transaction-cost buy components: "
             + ", ".join(str(item) for item in transaction_cost.get("buy_cost_components", [])),
@@ -284,6 +290,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must allow RD-Agent action {action}")
     for action in (
         "redefine_instrument_identity_or_board_mapping",
+        "redefine_trading_calendar_or_data_frequency",
         "redefine_transaction_cost_model",
         "redefine_suspension_or_tradability_rules",
         "redefine_execution_price_or_frequency",
@@ -345,11 +352,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         )
     for key in (
         "instrument_identity_semantics",
+        "trading_calendar_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "market_semantics.data_frequency",
         "market_semantics.settlement_rule",
         "settlement_semantics",
         "cash_constraint_semantics",
@@ -412,6 +421,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     for key in (
         "market",
         "region",
+        "data_frequency",
         "trade_unit",
         "position_type",
         "settlement_rule",
@@ -484,6 +494,83 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     if instrument_identity.get("rdagent_rule") != "describe_only_do_not_redefine_instrument_or_board_identity":
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must forbid RD-Agent redefinition"
+        )
+    trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
+    for key in (
+        "semantic_name",
+        "calendar_frequency",
+        "calendar_provider_authority",
+        "calendar_locator_authority",
+        "exchange_frequency_parameter",
+        "exchange_default_frequency",
+        "index_level",
+        "instrument_window_rule",
+        "non_trading_day_rule",
+        "future_calendar_rule",
+        "synthetic_session_rule",
+        "rdagent_rule",
+    ):
+        if key not in trading_calendar:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must include {key}"
+            )
+    if trading_calendar.get("semantic_name") != "a_share_daily_trading_calendar":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must describe A-share calendar"
+        )
+    if trading_calendar.get("calendar_frequency") != "day":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must stay day-frequency"
+        )
+    if trading_calendar.get("calendar_frequency") != prompt_market.get("data_frequency"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must match market data frequency"
+        )
+    if trading_calendar.get("calendar_provider_authority") != "qlib.data.data.CalendarProvider.calendar":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must name Qlib calendar authority"
+        )
+    if trading_calendar.get("calendar_locator_authority") != "qlib.data.data.CalendarProvider.locate_index":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must name Qlib locator authority"
+        )
+    if trading_calendar.get("exchange_frequency_parameter") != "freq":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must bind exchange freq"
+        )
+    if trading_calendar.get("exchange_default_frequency") != "day":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must bind day exchange default"
+        )
+    if trading_calendar.get("index_level") != "datetime":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must bind datetime index"
+        )
+    if trading_calendar.get("instrument_window_rule") != (
+        "instrument_membership_is_filtered_against_calendar_boundaries"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must declare instrument calendar filtering"
+        )
+    if trading_calendar.get("non_trading_day_rule") != (
+        "calendar_locate_index_maps_start_forward_and_end_backward_to_real_trading_days"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must declare non-trading day behavior"
+        )
+    if trading_calendar.get("future_calendar_rule") != (
+        "future_trading_days_require_qlib_future_calendar_support_not_prompt_invention"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must forbid prompt future calendars"
+        )
+    if trading_calendar.get("synthetic_session_rule") != "rdagent_must_not_invent_non_qlib_calendar_sessions":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must forbid synthetic sessions"
+        )
+    if trading_calendar.get("rdagent_rule") != "describe_only_do_not_redefine_trading_calendar_or_data_frequency":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload trading_calendar_semantics must forbid RD-Agent calendar redefinition"
         )
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     for key in (
@@ -1063,6 +1150,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
 
     market = _mapping(contract.get("market_semantics"))
     for key in (
+        "data_frequency",
         "trade_unit",
         "position_type",
         "settlement_rule",
@@ -1138,6 +1226,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "position_type",
         "settlement_rule",
         "same_day_sell_policy",
+        "data_frequency",
+        "trading_calendar_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
