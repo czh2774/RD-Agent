@@ -139,6 +139,7 @@ def format_rd_agent_ashare_semantic_context(
     trade_indicator = _mapping(prompt_payload.get("trade_indicator_semantics"))
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
+    signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
@@ -229,6 +230,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- strategy-order prediction window: {strategy_order.get('prediction_window_rule')}",
             f"- strategy-order dropout rule: {strategy_order.get('dropout_rule')}",
             f"- strategy-order order return rule: {strategy_order.get('target_order_return_rule')}",
+            f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
+            f"- signal-ic calculation: pyqlib ({signal_ic.get('ic_calculation_authority')})",
+            "- signal-ic metrics: " + ", ".join(str(item) for item in signal_ic.get("metric_fields", [])),
+            f"- signal-ic groupby: {signal_ic.get('groupby_level')}",
+            f"- signal-ic IC rule: {signal_ic.get('ic_rule')}",
+            f"- signal-ic Rank IC rule: {signal_ic.get('rank_ic_rule')}",
+            f"- signal-ic portfolio boundary: {signal_ic.get('portfolio_boundary_rule')}",
             f"- portfolio-risk authority: pyqlib ({portfolio_risk.get('risk_analysis_authority')})",
             "- portfolio-risk metrics: "
             + ", ".join(str(item) for item in portfolio_risk.get("risk_metric_fields", [])),
@@ -389,6 +397,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_trade_execution_indicators_or_quality_metrics",
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_strategy_signal_to_order_generation",
+        "redefine_signal_ic_or_rank_ic_metrics",
         "redefine_portfolio_risk_analysis_metrics",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_settlement_or_sellable_position_state",
@@ -441,6 +450,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
         "rdagent_must_not_redefine",
@@ -478,6 +488,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
         "suspension_tradability_semantics",
@@ -1178,6 +1189,70 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"strategy_order_semantics must preserve {key}"
             )
+    signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
+    for key in (
+        "semantic_name",
+        "signal_record_authority",
+        "signal_analysis_authority",
+        "high_frequency_signal_analysis_authority",
+        "ic_calculation_authority",
+        "prediction_artifact",
+        "label_artifact",
+        "ic_artifact",
+        "rank_ic_artifact",
+        "prediction_column_rule",
+        "label_source_rule",
+        "missing_label_rule",
+        "label_column_rule",
+        "groupby_level",
+        "ic_rule",
+        "rank_ic_rule",
+        "dropna_rule",
+        "metric_fields",
+        "metric_aggregation_rule",
+        "icir_rule",
+        "rank_icir_rule",
+        "recorder_metric_rule",
+        "rdagent_consumed_metric_paths",
+        "portfolio_boundary_rule",
+        "rdagent_rule",
+    ):
+        if key not in signal_ic:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload signal_ic_semantics must include {key}"
+            )
+    expected_signal_ic_values = {
+        "semantic_name": "a_share_signal_information_coefficient",
+        "signal_record_authority": "qlib.workflow.record_temp.SignalRecord",
+        "signal_analysis_authority": "qlib.workflow.record_temp.SigAnaRecord",
+        "high_frequency_signal_analysis_authority": "qlib.workflow.record_temp.HFSignalRecord",
+        "ic_calculation_authority": "qlib.contrib.eva.alpha.calc_ic",
+        "prediction_artifact": "pred.pkl",
+        "label_artifact": "label.pkl",
+        "ic_artifact": "ic.pkl",
+        "rank_ic_artifact": "ric.pkl",
+        "prediction_column_rule": "series_prediction_is_converted_to_score_dataframe_else_first_prediction_column_is_used",
+        "label_source_rule": "dataset_prepare_test_label_uses_DataHandlerLP_DK_R_when_supported_else_handler_default",
+        "missing_label_rule": "missing_or_empty_label_skips_signal_analysis_generation",
+        "label_column_rule": "SigAnaRecord_uses_configured_label_col_default_zero",
+        "groupby_level": "datetime",
+        "ic_rule": "IC_is_per_datetime_pearson_correlation_between_pred_and_label",
+        "rank_ic_rule": "Rank_IC_is_per_datetime_spearman_correlation_between_pred_and_label",
+        "dropna_rule": "calc_ic_preserves_nan_by_default_and_drops_nan_only_when_dropna_true",
+        "metric_fields": ["IC", "ICIR", "Rank IC", "Rank ICIR"],
+        "metric_aggregation_rule": "IC_and_Rank_IC_metrics_are_series_means",
+        "icir_rule": "ICIR_is_IC_mean_divided_by_IC_sample_std",
+        "rank_icir_rule": "Rank_ICIR_is_Rank_IC_mean_divided_by_Rank_IC_sample_std",
+        "recorder_metric_rule": "SigAnaRecord_and_HFSignalRecord_log_metrics_with_exact_metric_names",
+        "rdagent_consumed_metric_paths": ["IC", "ICIR", "Rank IC", "Rank ICIR"],
+        "portfolio_boundary_rule": "signal_ic_metrics_are_prediction_label_quality_metrics_not_portfolio_return_metrics",
+        "rdagent_rule": "describe_only_do_not_redefine_signal_ic_or_rank_ic_metrics",
+    }
+    for key, expected_value in expected_signal_ic_values.items():
+        if signal_ic.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"signal_ic_semantics must preserve {key}"
+            )
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     for key in (
         "semantic_name",
@@ -1237,7 +1312,6 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
         "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
         "rdagent_consumed_metric_paths": [
-            "IC",
             "1day.excess_return_without_cost.annualized_return",
             "1day.excess_return_without_cost.max_drawdown",
         ],
@@ -2064,6 +2138,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
         "suspension_tradability_semantics",
