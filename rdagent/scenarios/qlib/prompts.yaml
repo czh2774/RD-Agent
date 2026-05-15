@@ -170,7 +170,7 @@ model_experiment_output_format: |-
             "batch_size": 256,
             "weight_decay": 1e-4,
         }
-        "model_type": "Tabular or TimeSeries"  # Should be one of "Tabular" or "TimeSeries"
+        "model_type": "TimeSeries"  # Use exactly one supported value: "Tabular" or "TimeSeries".
     },
   }
 

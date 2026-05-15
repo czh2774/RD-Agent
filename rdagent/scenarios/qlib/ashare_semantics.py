@@ -52,7 +52,14 @@ QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/prompts.yaml",
     "rdagent/components/coder/factor_coder/prompts.yaml",
 )
-QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
+QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = (
+    "$open",
+    "$close",
+    "$high",
+    "$low",
+    "$vwap",
+    "$volume",
+)
 QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE = (
     "alpha158_alpha360_derived_features_must_be_computed_only_from_registered_daily_price_volume_fields"
 )
@@ -82,6 +89,13 @@ QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE = (
 QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE = (
     "rdagent_qlib_model_experiment_outputs_must_use_tabular_or_timeseries_model_type_only"
 )
+QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE = (
+    "rdagent_qlib_model_prompt_examples_must_use_concrete_supported_model_type_literals_not_union_or_typo_values"
+)
+QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS = (
+    "Tabular or TimeSeries",
+    "TimesSeries",
+)
 QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_implementation_prompts_must_treat_model_output_boundary_as_authority_over_generic_model_type_examples"
 QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_evaluator_prompts_must_reject_model_output_boundary_violations_even_when_execution_or_similar_examples_pass"
 QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_formulation_prompts_must_describe_predictions_as_datetime_instrument_scores_and_not_graph_node_outputs"
@@ -91,7 +105,9 @@ QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE = (
 QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE = "rdagent_qlib_serialized_model_task_loaders_must_attach_prediction_signal_boundary_before_qlib_model_experiment_composition"
 QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE = "rdagent_qlib_serialized_model_benchmark_fixtures_must_use_datetime_instrument_prediction_score_semantics_not_graph_node_or_molecular_outputs"
 QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE = "rdagent_qlib_model_benchmark_reference_code_must_execute_tabular_or_timeseries_prediction_score_tensors_without_torch_geometric_or_graph_inputs"
-QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE = "rdagent_qlib_model_benchmark_fixtures_must_use_qlib_ashare_prediction_score_identity_not_legacy_graph_model_names"
+QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE = (
+    "rdagent_qlib_model_benchmark_fixtures_must_use_qlib_ashare_prediction_score_identity_not_legacy_graph_model_names"
+)
 QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME = "QlibAshareTemporalScore"
 QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS = (
     "rdagent/components/coder/model_coder/benchmark/model_dict.json",
@@ -271,7 +287,9 @@ def build_rd_agent_ashare_runtime_handoff(
     }
 
 
-def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | None = None) -> str:
+def build_qlib_ashare_model_task_output_boundary(
+    contract: Mapping[str, Any] | None = None,
+) -> str:
     context = build_rd_agent_ashare_semantic_context(contract)
     prompt_payload = _mapping(context.get("prompt_projection_payload"))
     prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
@@ -286,6 +304,7 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('rdagent_model_output_format_rule')}; "
         f"{prediction_signal.get('rdagent_model_task_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_type_boundary_rule')}; "
+        f"{prediction_signal.get('rdagent_model_prompt_example_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_implementation_prompt_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_evaluator_prompt_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_formulation_prompt_boundary_rule')}; "
@@ -434,6 +453,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- prediction-signal model output format: {prediction_signal.get('rdagent_model_output_format_rule')}",
             f"- prediction-signal model task boundary: {prediction_signal.get('rdagent_model_task_boundary_rule')}",
             f"- prediction-signal model type boundary: {prediction_signal.get('rdagent_model_type_boundary_rule')}",
+            "- prediction-signal model prompt example boundary: "
+            f"{prediction_signal.get('rdagent_model_prompt_example_boundary_rule')}",
+            "- prediction-signal prompt forbidden model type literals: "
+            + ", ".join(
+                str(item) for item in prediction_signal.get("rdagent_model_prompt_forbidden_model_type_literals", [])
+            ),
             "- prediction-signal implementation prompt boundary: "
             f"{prediction_signal.get('rdagent_model_implementation_prompt_boundary_rule')}",
             "- prediction-signal evaluator prompt boundary: "
@@ -931,7 +956,12 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include board rules"
         )
     board_names = {_mapping(rule).get("board") for rule in board_rules}
-    for board in ("star_market", "chinext_registration_sensitive", "beijing_stock_exchange", "main_board"):
+    for board in (
+        "star_market",
+        "chinext_registration_sensitive",
+        "beijing_stock_exchange",
+        "main_board",
+    ):
         if board not in board_names:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include {board}"
@@ -1319,7 +1349,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "record_authority": "qlib.backtest.report.Indicator.record",
         "order_indicator_state": "Indicator.order_indicator",
         "trade_indicator_state": "Indicator.trade_indicator",
-        "history_state": ["Indicator.order_indicator_his", "Indicator.trade_indicator_his"],
+        "history_state": [
+            "Indicator.order_indicator_his",
+            "Indicator.trade_indicator_his",
+        ],
         "order_metric_fields": [
             "amount",
             "inner_amount",
@@ -1578,6 +1611,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_output_format_rule",
         "rdagent_model_task_boundary_rule",
         "rdagent_model_type_boundary_rule",
+        "rdagent_model_prompt_example_boundary_rule",
+        "rdagent_model_prompt_forbidden_model_type_literals",
         "rdagent_model_implementation_prompt_boundary_rule",
         "rdagent_model_evaluator_prompt_boundary_rule",
         "rdagent_model_formulation_prompt_boundary_rule",
@@ -1627,6 +1662,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
         "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
+        "rdagent_model_prompt_example_boundary_rule": QLIB_ASHARE_MODEL_PROMPT_EXAMPLE_BOUNDARY_RULE,
+        "rdagent_model_prompt_forbidden_model_type_literals": list(
+            QLIB_ASHARE_MODEL_PROMPT_FORBIDDEN_MODEL_TYPE_LITERALS
+        ),
         "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
         "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
@@ -1774,7 +1813,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
         "excess_without_cost_rule": "report_return_minus_benchmark",
         "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
-        "risk_metric_fields": ["mean", "std", "annualized_return", "information_ratio", "max_drawdown"],
+        "risk_metric_fields": [
+            "mean",
+            "std",
+            "annualized_return",
+            "information_ratio",
+            "max_drawdown",
+        ],
         "default_accumulation_mode": "sum",
         "supported_accumulation_modes": ["sum", "product"],
         "sum_mode_rule": "qlib_sum_mode_uses_arithmetic_cumulative_return_not_geometric_compounding",
@@ -2010,7 +2055,12 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "market_universe_rule": "csi300_template_market_selects_instruments_only",
         "benchmark_rule": "SH000300_template_benchmark_is_portfolio_excess_return_baseline_only",
         "separation_rule": "market_universe_membership_and_benchmark_return_series_are_not_substitutable",
-        "forbidden_template_values": ["all_a", "all", "SH000300_as_market", "csi300_as_benchmark"],
+        "forbidden_template_values": [
+            "all_a",
+            "all",
+            "SH000300_as_market",
+            "csi300_as_benchmark",
+        ],
         "rdagent_template_paths": list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS),
         "rdagent_rule": "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing",
     }
@@ -2052,7 +2102,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
                 "pyqlib A-share contract prompt_projection_payload "
                 f"runtime_handoff_template_binding_semantics must preserve {key}"
             )
-    for forbidden_key in ("required_backtest_kwargs", "forbidden_legacy_exchange_kwargs"):
+    for forbidden_key in (
+        "required_backtest_kwargs",
+        "forbidden_legacy_exchange_kwargs",
+    ):
         if forbidden_key in runtime_template_binding:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload "
