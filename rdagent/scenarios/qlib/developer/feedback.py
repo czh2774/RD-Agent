@@ -8,17 +8,14 @@ from rdagent.core.experiment import Experiment
 from rdagent.core.proposal import Experiment2Feedback, HypothesisFeedback, Trace
 from rdagent.log import rdagent_logger as logger
 from rdagent.oai.llm_utils import APIBackend
+from rdagent.scenarios.qlib.ashare_semantics import QLIB_ASHARE_FEEDBACK_METRIC_PATHS
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils import convert2bool
 from rdagent.utils.agent.tpl import T
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 
-IMPORTANT_METRICS = [
-    "IC",
-    "1day.excess_return_with_cost.annualized_return",
-    "1day.excess_return_with_cost.max_drawdown",
-]
+IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)
 
 
 def _render_feedback_value(value: Any) -> str:

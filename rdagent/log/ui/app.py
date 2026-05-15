@@ -25,6 +25,7 @@ from rdagent.log.base import Message
 from rdagent.log.storage import FileStorage
 from rdagent.log.ui.qlib_report_figure import report_figure
 from rdagent.scenarios.general_model.scenario import GeneralModelScenario
+from rdagent.scenarios.qlib.ashare_semantics import QLIB_ASHARE_UI_SELECTED_METRICS
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorScenario
 from rdagent.scenarios.qlib.experiment.factor_from_report_experiment import (
     QlibFactorFromReportScenario,
@@ -57,12 +58,7 @@ else:
     main_log_path = None
 
 
-QLIB_SELECTED_METRICS = [
-    "IC",
-    "1day.excess_return_with_cost.annualized_return",
-    "1day.excess_return_with_cost.information_ratio",
-    "1day.excess_return_with_cost.max_drawdown",
-]
+QLIB_SELECTED_METRICS = list(QLIB_ASHARE_UI_SELECTED_METRICS)
 
 SIMILAR_SCENARIOS = tuple(
     scenario_cls

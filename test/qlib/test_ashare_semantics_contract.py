@@ -3,11 +3,21 @@ from __future__ import annotations
 import sys
 import types
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
+    QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
+    QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS,
+    QLIB_ASHARE_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    QLIB_ASHARE_UI_SELECTED_METRICS,
     QlibAshareSemanticContractError,
     append_ashare_semantic_context,
     build_rd_agent_ashare_runtime_handoff,
@@ -15,6 +25,8 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     format_rd_agent_ashare_semantic_context,
     load_qlib_ashare_contract,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _market_impact_semantics() -> dict[str, str]:
@@ -270,9 +282,17 @@ def _portfolio_risk_semantics() -> dict[str, Any]:
         "annualized_return_rule": "sum_mode_annualized_return_equals_mean_times_annualization_scaler",
         "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
         "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
+        "metric_path_format": "{freq}.{report_type}.{risk_metric}",
+        "metric_path_frequency": "1day",
+        "metric_path_whitespace_rule": "metric_paths_are_exact_without_leading_or_trailing_whitespace",
+        "metric_path_report_type_rule": "prompt_context_uses_without_cost_and_feedback_bandit_ui_use_with_cost",
+        "rdagent_prompt_metric_paths": list(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS),
+        "rdagent_feedback_metric_paths": list(QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS),
+        "rdagent_bandit_metric_paths": list(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS),
+        "rdagent_ui_metric_paths": list(QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS),
         "rdagent_consumed_metric_paths": [
-            "1day.excess_return_without_cost.annualized_return",
-            "1day.excess_return_without_cost.max_drawdown",
+            *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
+            *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
         ],
         "rdagent_rule": "describe_only_do_not_redefine_portfolio_risk_analysis_metrics",
     }
@@ -1119,6 +1139,42 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "runtime_surfaces" not in context
 
 
+def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
+    contract = _valid_contract()
+    portfolio = contract["prompt_projection_payload"]["portfolio_risk_semantics"]
+    signal = contract["prompt_projection_payload"]["signal_ic_semantics"]
+
+    assert list(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS) == signal["rdagent_consumed_metric_paths"]
+    assert list(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS) == portfolio["rdagent_prompt_metric_paths"]
+    assert list(QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS) == portfolio["rdagent_feedback_metric_paths"]
+    assert list(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS) == portfolio["rdagent_bandit_metric_paths"]
+    assert list(QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS) == portfolio["rdagent_ui_metric_paths"]
+    assert list(QLIB_ASHARE_PROMPT_METRIC_PATHS) == ["IC", *portfolio["rdagent_prompt_metric_paths"]]
+    assert list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS) == ["IC", *portfolio["rdagent_feedback_metric_paths"]]
+    assert list(QLIB_ASHARE_BANDIT_METRIC_PATHS) == [
+        *signal["rdagent_consumed_metric_paths"],
+        *portfolio["rdagent_bandit_metric_paths"],
+    ]
+    assert list(QLIB_ASHARE_UI_SELECTED_METRICS) == ["IC", *portfolio["rdagent_ui_metric_paths"]]
+    assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
+
+
+def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> None:
+    bandit_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/bandit.py").read_text()
+    feedback_source = (REPO_ROOT / "rdagent/scenarios/qlib/developer/feedback.py").read_text()
+    ui_source = (REPO_ROOT / "rdagent/log/ui/app.py").read_text()
+    prompts_source = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
+
+    assert "annualized_return " not in bandit_source
+    assert "QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS" in bandit_source
+    assert "QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS" in bandit_source
+    assert "IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)" in feedback_source
+    assert "QLIB_SELECTED_METRICS = list(QLIB_ASHARE_UI_SELECTED_METRICS)" in ui_source
+    for path in QLIB_ASHARE_PROMPT_METRIC_PATHS:
+        assert path in prompts_source
+    assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
+
+
 def test_rd_agent_runtime_handoff_keeps_execution_payload_separate_from_prompt_context() -> None:
     handoff = build_rd_agent_ashare_runtime_handoff(_valid_contract())
 
@@ -1872,6 +1928,26 @@ def test_malformed_qlib_prompt_projection_with_mutable_portfolio_metric_paths_fa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_whitespace_portfolio_metric_path_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"]["rdagent_bandit_metric_paths"] = [
+        "1day.excess_return_with_cost.annualized_return ",
+        "1day.excess_return_with_cost.information_ratio",
+        "1day.excess_return_with_cost.max_drawdown",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_metric_path_format_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"]["metric_path_format"] = "{risk_metric}"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_benchmark_return_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["benchmark_return_semantics"]
@@ -2050,6 +2126,9 @@ def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytes
 
 def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() -> None:
     text = format_rd_agent_ashare_semantic_context(build_rd_agent_ashare_semantic_context(_valid_contract()))
+    consumed_portfolio_paths = ", ".join(
+        [*QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS, *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS]
+    )
 
     assert "qlib_contract_id: rdagent_qlib_joinquant_ashare_semantic_contract_v1" in text
     assert "qlib_contract_schema_version: qlib_ashare_semantic_contract.v1" in text
@@ -2177,10 +2256,15 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     ) in text
     assert "portfolio-risk authority: pyqlib (qlib.contrib.evaluate.risk_analysis)" in text
     assert "portfolio-risk metrics: mean, std, annualized_return, information_ratio, max_drawdown" in text
+    assert f"portfolio-risk consumed paths: {consumed_portfolio_paths}" in text
+    assert "portfolio-risk metric path format: {freq}.{report_type}.{risk_metric}" in text
     assert (
-        "portfolio-risk consumed paths: 1day.excess_return_without_cost.annualized_return, "
-        "1day.excess_return_without_cost.max_drawdown"
+        "portfolio-risk metric path whitespace rule: " "metric_paths_are_exact_without_leading_or_trailing_whitespace"
     ) in text
+    assert f"portfolio-risk prompt paths: {', '.join(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)}" in text
+    assert f"portfolio-risk feedback paths: {', '.join(QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)}" in text
+    assert f"portfolio-risk bandit paths: {', '.join(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS)}" in text
+    assert f"portfolio-risk UI paths: {', '.join(QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS)}" in text
     assert "portfolio-risk annualization scaler: 238" in text
     assert (
         "portfolio-risk max drawdown rule: "

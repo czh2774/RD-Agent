@@ -5,18 +5,26 @@ on:
     branches: [main]
     paths:
       - "rdagent/scenarios/qlib/ashare_semantics.py"
+      - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
       - "rdagent/scenarios/qlib/experiment/model_experiment.py"
       - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
+      - "rdagent/scenarios/qlib/proposal/bandit.py"
+      - "rdagent/scenarios/qlib/prompts.yaml"
+      - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
       - ".github/workflows/internal_ashare_semantics.yml"
   push:
     branches: [main]
     paths:
       - "rdagent/scenarios/qlib/ashare_semantics.py"
+      - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
       - "rdagent/scenarios/qlib/experiment/model_experiment.py"
       - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
+      - "rdagent/scenarios/qlib/proposal/bandit.py"
+      - "rdagent/scenarios/qlib/prompts.yaml"
+      - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
       - ".github/workflows/internal_ashare_semantics.yml"
 
@@ -46,6 +54,9 @@ jobs:
         run: |
           python -m py_compile \
             rdagent/scenarios/qlib/ashare_semantics.py \
+            rdagent/scenarios/qlib/developer/feedback.py \
+            rdagent/scenarios/qlib/proposal/bandit.py \
+            rdagent/log/ui/app.py \
             test/qlib/test_ashare_semantics_contract.py
 
       - name: Run A-share Qlib contract tests

@@ -6,6 +6,11 @@ from typing import List, Literal, Tuple
 
 import numpy as np
 
+from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+)
+
 
 @dataclass
 class Metrics:
@@ -37,13 +42,13 @@ def extract_metrics_from_experiment(experiment) -> Metrics:
     """Extract metrics from experiment feedback"""
     try:
         result = experiment.result
-        ic = result.get("IC", 0.0)
-        icir = result.get("ICIR", 0.0)
-        rank_ic = result.get("Rank IC", 0.0)
-        rank_icir = result.get("Rank ICIR", 0.0)
-        arr = result.get("1day.excess_return_with_cost.annualized_return ", 0.0)
-        ir = result.get("1day.excess_return_with_cost.information_ratio", 0.0)
-        mdd = result.get("1day.excess_return_with_cost.max_drawdown", 1.0)  # Avoid division by zero
+        ic = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0], 0.0)
+        icir = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[1], 0.0)
+        rank_ic = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[2], 0.0)
+        rank_icir = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[3], 0.0)
+        arr = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0], 0.0)
+        ir = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1], 0.0)
+        mdd = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2], 1.0)  # Avoid division by zero
         sharpe = arr / -mdd if mdd != 0 else 0.0
 
         return Metrics(ic=ic, icir=icir, rank_ic=rank_ic, rank_icir=rank_icir, arr=arr, ir=ir, mdd=mdd, sharpe=sharpe)
