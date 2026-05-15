@@ -5,6 +5,7 @@ from importlib import import_module
 from typing import Any, Mapping
 
 REQUIRED_QLIB_CONTRACT_ID = "rdagent_qlib_joinquant_ashare_semantic_contract_v1"
+REQUIRED_QLIB_RUNTIME_HANDOFF_ID = "qlib_joinquant_ashare_runtime_handoff_v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"
 
@@ -78,7 +79,36 @@ def build_rd_agent_ashare_semantic_context(
             "Treat generated factors and models as candidates until Qlib execution and downstream governance evidence exist.",
         ],
         "qlib_market_semantics": deepcopy(qlib_contract["market_semantics"]),
-        "runtime_surfaces": deepcopy(qlib_contract["runtime_surfaces"]),
+    }
+
+
+def build_rd_agent_ashare_runtime_handoff(
+    contract: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the execution-only Qlib runtime handoff consumed by RD-Agent."""
+
+    qlib_contract = _validate_qlib_ashare_contract(
+        dict(contract) if contract is not None else load_qlib_ashare_contract()
+    )
+    evidence_contract = _mapping(qlib_contract.get("evidence_contract"))
+    handoff_contract = _mapping(qlib_contract.get("runtime_handoff_contract"))
+    runtime_surfaces = _mapping(qlib_contract.get("runtime_surfaces"))
+    return {
+        "schema_version": "rdagent_ashare_runtime_handoff.v1",
+        "handoff_id": handoff_contract["handoff_id"],
+        "status": "active",
+        "rdagent_component": RDAGENT_ASHARE_CONSUMER_COMPONENT,
+        "qlib_contract_id": qlib_contract["contract_id"],
+        "qlib_contract_schema_version": qlib_contract["schema_version"],
+        "qlib_contract_fingerprint": evidence_contract["semantic_fingerprint"],
+        "qlib_source_component": qlib_contract["source_component"],
+        "semantic_authority": QLIB_ASHARE_AUTHORITY_COMPONENT,
+        "mutation_policy": handoff_contract["mutation_policy"],
+        "consumer_obligations": list(handoff_contract["consumer_obligations"]),
+        "runtime_payload": {
+            "exchange_kwargs": deepcopy(runtime_surfaces["exchange_kwargs"]),
+            "backtest_kwargs": deepcopy(runtime_surfaces["backtest_kwargs"]),
+        },
     }
 
 
@@ -260,6 +290,55 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     for key in ("exchange_kwargs", "backtest_kwargs"):
         if key not in runtime_surfaces:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract runtime_surfaces must include {key}")
+
+    runtime_handoff = _mapping(contract.get("runtime_handoff_contract"))
+    if runtime_handoff.get("handoff_id") != REQUIRED_QLIB_RUNTIME_HANDOFF_ID:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must declare the Qlib runtime handoff id"
+        )
+    if runtime_handoff.get("handoff_kind") != "qlib_owned_execution_kwargs":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must describe Qlib-owned execution kwargs"
+        )
+    if runtime_handoff.get("authority_component") != QLIB_ASHARE_AUTHORITY_COMPONENT:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must name Qlib authority"
+        )
+    if runtime_handoff.get("consumer_component") != RDAGENT_ASHARE_CONSUMER_COMPONENT:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must name RD-Agent consumer"
+        )
+    if runtime_handoff.get("source_fingerprint") != evidence_contract["semantic_fingerprint"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must preserve the semantic fingerprint"
+        )
+    if runtime_handoff.get("mutation_policy") != "pass_through_only":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract runtime_handoff_contract must be pass_through_only"
+        )
+    handoff_payload_paths = _string_list(runtime_handoff.get("payload_paths"))
+    for key in ("runtime_surfaces.exchange_kwargs", "runtime_surfaces.backtest_kwargs"):
+        if key not in handoff_payload_paths:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract runtime_handoff_contract must expose payload path {key}"
+            )
+    handoff_forbidden_prompt_paths = _string_list(runtime_handoff.get("forbidden_prompt_paths"))
+    for key in ("runtime_surfaces.policy_defaults", "market_semantics.cost_model"):
+        if key not in handoff_forbidden_prompt_paths:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract runtime_handoff_contract must forbid prompt path {key}"
+            )
+    handoff_obligations = _string_list(runtime_handoff.get("consumer_obligations"))
+    for key in (
+        "preserve_contract_id_schema_version_and_fingerprint",
+        "preserve_qlib_source_component",
+        "do_not_mutate_runtime_payload_values",
+        "fail_closed_on_missing_payload_or_fingerprint",
+    ):
+        if key not in handoff_obligations:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract runtime_handoff_contract must require obligation {key}"
+            )
 
     must_not_redefine = contract.get("rdagent_must_not_redefine")
     if not isinstance(must_not_redefine, list):
