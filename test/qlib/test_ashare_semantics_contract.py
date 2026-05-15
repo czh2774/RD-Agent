@@ -249,6 +249,37 @@ def _portfolio_risk_semantics() -> dict[str, Any]:
     }
 
 
+def _benchmark_return_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_benchmark_return_series",
+        "default_benchmark": "SH000300",
+        "benchmark_constant_authority": "qlib.tests.config.CSI300_BENCH",
+        "backtest_entry_authority": "qlib.backtest.backtest",
+        "account_config_authority": "qlib.backtest.create_account_instance",
+        "portfolio_metric_authority": "qlib.backtest.report.PortfolioMetrics",
+        "benchmark_calculation_authority": "qlib.backtest.report.PortfolioMetrics._cal_benchmark",
+        "benchmark_sampling_authority": "qlib.backtest.report.PortfolioMetrics._sample_benchmark",
+        "feature_query_authority": "qlib.utils.resam.get_higher_eq_freq_feature",
+        "resample_authority": "qlib.utils.resam.resam_ts_data",
+        "accepted_benchmark_inputs": ["str", "list", "dict", "pd.Series", "None"],
+        "default_rule": "missing_benchmark_key_uses_CSI300_BENCH_SH000300",
+        "none_rule": "benchmark_config_none_or_benchmark_none_disables_benchmark_series",
+        "series_rule": "pd_series_benchmark_is_used_directly_as_per_period_return_series",
+        "code_rule": "str_benchmark_is_queried_as_single_code_close_over_ref_close_minus_one",
+        "basket_rule": "list_or_dict_benchmark_is_queried_as_codes_and_averaged_by_datetime",
+        "benchmark_field_expression": "$close/Ref($close,1)-1",
+        "missing_frequency_rule": "non_series_benchmark_requires_freq_else_ValueError",
+        "missing_benchmark_rule": "empty_feature_result_raises_ValueError",
+        "fillna_rule": "queried_benchmark_returns_fillna_zero_after_datetime_average",
+        "sample_rule": "bar_benchmark_return_equals_product_of_one_plus_period_returns_minus_one",
+        "direct_bench_value_rule": "provided_bench_value_overrides_sampling",
+        "unusable_benchmark_rule": "trade_end_time_and_bench_value_both_none_raise_ValueError",
+        "report_column": "bench",
+        "portfolio_risk_dependency": "portfolio_risk_excess_returns_use_report_normal_bench_column",
+        "rdagent_rule": "describe_only_do_not_redefine_benchmark_return_series_or_default_benchmark",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -263,7 +294,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, portfolio risk analysis, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, portfolio risk analysis, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -298,6 +329,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_executor_decision_lifecycle_or_nested_execution_order",
                 "redefine_strategy_signal_to_order_generation",
                 "redefine_portfolio_risk_analysis_metrics",
+                "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -333,6 +365,7 @@ def _valid_contract() -> dict[str, Any]:
                 "executor_decision_semantics",
                 "strategy_order_semantics",
                 "portfolio_risk_semantics",
+                "benchmark_return_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -371,6 +404,7 @@ def _valid_contract() -> dict[str, Any]:
                 "executor_decision_semantics",
                 "strategy_order_semantics",
                 "portfolio_risk_semantics",
+                "benchmark_return_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -611,6 +645,7 @@ def _valid_contract() -> dict[str, Any]:
             "executor_decision_semantics": _executor_decision_semantics(),
             "strategy_order_semantics": _strategy_order_semantics(),
             "portfolio_risk_semantics": _portfolio_risk_semantics(),
+            "benchmark_return_semantics": _benchmark_return_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -763,6 +798,7 @@ def _valid_contract() -> dict[str, Any]:
             "executor_decision_semantics",
             "strategy_order_semantics",
             "portfolio_risk_semantics",
+            "benchmark_return_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -837,6 +873,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_executor_decision_lifecycle_or_nested_execution_order" in boundary["rdagent_forbidden_actions"]
     assert "redefine_strategy_signal_to_order_generation" in boundary["rdagent_forbidden_actions"]
     assert "redefine_portfolio_risk_analysis_metrics" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_benchmark_return_series_or_default_benchmark" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -854,6 +891,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "executor_decision_semantics",
         "strategy_order_semantics",
         "portfolio_risk_semantics",
+        "benchmark_return_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -930,6 +968,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["executor_decision_semantics"] == _executor_decision_semantics()
     assert context["prompt_projection_payload"]["strategy_order_semantics"] == _strategy_order_semantics()
     assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
+    assert context["prompt_projection_payload"]["benchmark_return_semantics"] == _benchmark_return_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -1759,6 +1798,40 @@ def test_malformed_qlib_prompt_projection_with_mutable_portfolio_metric_paths_fa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_benchmark_return_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["benchmark_return_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="benchmark_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_benchmark_default_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["benchmark_return_semantics"]["default_benchmark"] = "SH000905"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="benchmark_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_benchmark_field_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["benchmark_return_semantics"]["benchmark_field_expression"] = "$close"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="benchmark_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_benchmark_sample_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["benchmark_return_semantics"][
+        "sample_rule"
+    ] = "bar_benchmark_return_equals_simple_sum_of_period_returns"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="benchmark_return_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -2029,6 +2102,13 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "portfolio-risk max drawdown rule: "
         "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max"
     ) in text
+    assert "benchmark-return authority: pyqlib (qlib.backtest.report.PortfolioMetrics._cal_benchmark)" in text
+    assert "benchmark-return default: SH000300" in text
+    assert "benchmark-return field: $close/Ref($close,1)-1" in text
+    assert "benchmark-return sample rule: bar_benchmark_return_equals_product_of_one_plus_period_returns_minus_one" in (
+        text
+    )
+    assert "benchmark-return report column: bench" in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -2116,7 +2196,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, portfolio_risk_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, portfolio_risk_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "

@@ -140,6 +140,7 @@ def format_rd_agent_ashare_semantic_context(
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
+    benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -235,6 +236,11 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_consumed_metric_paths", [])),
             f"- portfolio-risk annualization scaler: {portfolio_risk.get('day_annualization_scaler')}",
             f"- portfolio-risk max drawdown rule: {portfolio_risk.get('max_drawdown_rule')}",
+            f"- benchmark-return authority: pyqlib ({benchmark_return.get('benchmark_calculation_authority')})",
+            f"- benchmark-return default: {benchmark_return.get('default_benchmark')}",
+            f"- benchmark-return field: {benchmark_return.get('benchmark_field_expression')}",
+            f"- benchmark-return sample rule: {benchmark_return.get('sample_rule')}",
+            f"- benchmark-return report column: {benchmark_return.get('report_column')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -384,6 +390,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_strategy_signal_to_order_generation",
         "redefine_portfolio_risk_analysis_metrics",
+        "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -435,6 +442,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "executor_decision_semantics",
         "strategy_order_semantics",
         "portfolio_risk_semantics",
+        "benchmark_return_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -471,6 +479,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "executor_decision_semantics",
         "strategy_order_semantics",
         "portfolio_risk_semantics",
+        "benchmark_return_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1239,6 +1248,72 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"portfolio_risk_semantics must preserve {key}"
             )
+    benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
+    for key in (
+        "semantic_name",
+        "default_benchmark",
+        "benchmark_constant_authority",
+        "backtest_entry_authority",
+        "account_config_authority",
+        "portfolio_metric_authority",
+        "benchmark_calculation_authority",
+        "benchmark_sampling_authority",
+        "feature_query_authority",
+        "resample_authority",
+        "accepted_benchmark_inputs",
+        "default_rule",
+        "none_rule",
+        "series_rule",
+        "code_rule",
+        "basket_rule",
+        "benchmark_field_expression",
+        "missing_frequency_rule",
+        "missing_benchmark_rule",
+        "fillna_rule",
+        "sample_rule",
+        "direct_bench_value_rule",
+        "unusable_benchmark_rule",
+        "report_column",
+        "portfolio_risk_dependency",
+        "rdagent_rule",
+    ):
+        if key not in benchmark_return:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload benchmark_return_semantics must include {key}"
+            )
+    expected_benchmark_return_values = {
+        "semantic_name": "a_share_benchmark_return_series",
+        "default_benchmark": "SH000300",
+        "benchmark_constant_authority": "qlib.tests.config.CSI300_BENCH",
+        "backtest_entry_authority": "qlib.backtest.backtest",
+        "account_config_authority": "qlib.backtest.create_account_instance",
+        "portfolio_metric_authority": "qlib.backtest.report.PortfolioMetrics",
+        "benchmark_calculation_authority": "qlib.backtest.report.PortfolioMetrics._cal_benchmark",
+        "benchmark_sampling_authority": "qlib.backtest.report.PortfolioMetrics._sample_benchmark",
+        "feature_query_authority": "qlib.utils.resam.get_higher_eq_freq_feature",
+        "resample_authority": "qlib.utils.resam.resam_ts_data",
+        "accepted_benchmark_inputs": ["str", "list", "dict", "pd.Series", "None"],
+        "default_rule": "missing_benchmark_key_uses_CSI300_BENCH_SH000300",
+        "none_rule": "benchmark_config_none_or_benchmark_none_disables_benchmark_series",
+        "series_rule": "pd_series_benchmark_is_used_directly_as_per_period_return_series",
+        "code_rule": "str_benchmark_is_queried_as_single_code_close_over_ref_close_minus_one",
+        "basket_rule": "list_or_dict_benchmark_is_queried_as_codes_and_averaged_by_datetime",
+        "benchmark_field_expression": "$close/Ref($close,1)-1",
+        "missing_frequency_rule": "non_series_benchmark_requires_freq_else_ValueError",
+        "missing_benchmark_rule": "empty_feature_result_raises_ValueError",
+        "fillna_rule": "queried_benchmark_returns_fillna_zero_after_datetime_average",
+        "sample_rule": "bar_benchmark_return_equals_product_of_one_plus_period_returns_minus_one",
+        "direct_bench_value_rule": "provided_bench_value_overrides_sampling",
+        "unusable_benchmark_rule": "trade_end_time_and_bench_value_both_none_raise_ValueError",
+        "report_column": "bench",
+        "portfolio_risk_dependency": "portfolio_risk_excess_returns_use_report_normal_bench_column",
+        "rdagent_rule": "describe_only_do_not_redefine_benchmark_return_series_or_default_benchmark",
+    }
+    for key, expected_value in expected_benchmark_return_values.items():
+        if benchmark_return.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"benchmark_return_semantics must preserve {key}"
+            )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -1990,6 +2065,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "executor_decision_semantics",
         "strategy_order_semantics",
         "portfolio_risk_semantics",
+        "benchmark_return_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
