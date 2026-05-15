@@ -1,16 +1,20 @@
-import json
 import math
 from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Literal, Tuple
+from typing import Tuple
 
 import numpy as np
 
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
+    QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
 )
+
+
+class QlibAshareBanditMetricError(ValueError):
+    """Raised when Qlib A-share bandit feedback metrics are absent or invalid."""
 
 
 @dataclass
@@ -40,31 +44,50 @@ class Metrics:
 
 
 def extract_metrics_from_experiment(experiment) -> Metrics:
-    """Extract metrics from experiment feedback"""
+    """Extract Qlib-declared A-share bandit metrics from experiment feedback."""
+
     try:
         result = experiment.result
-        ic = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0], 0.0)
-        icir = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[1], 0.0)
-        rank_ic = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[2], 0.0)
-        rank_icir = result.get(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[3], 0.0)
-        arr = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0], 0.0)
-        ir = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1], 0.0)
-        mdd = result.get(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2], 1.0)  # Avoid division by zero
-        drawdown_adjusted_return = arr / abs(mdd) if mdd != 0 else 0.0
+    except AttributeError as exc:
+        raise QlibAshareBanditMetricError(f"{QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE}: experiment.result") from exc
 
-        return Metrics(
-            ic=ic,
-            icir=icir,
-            rank_ic=rank_ic,
-            rank_icir=rank_icir,
-            arr=arr,
-            ir=ir,
-            mdd=mdd,
-            **{QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME: drawdown_adjusted_return},
-        )
-    except Exception as e:
-        print(f"Error extracting metrics: {e}")
-        return Metrics()
+    ic = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0])
+    icir = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[1])
+    rank_ic = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[2])
+    rank_icir = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[3])
+    arr = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0])
+    ir = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1])
+    mdd = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2])
+    drawdown_adjusted_return = arr / abs(mdd) if mdd != 0 else 0.0
+
+    return Metrics(
+        ic=ic,
+        icir=icir,
+        rank_ic=rank_ic,
+        rank_icir=rank_icir,
+        arr=arr,
+        ir=ir,
+        mdd=mdd,
+        **{QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME: drawdown_adjusted_return},
+    )
+
+
+def _required_numeric_metric(result: object, metric_path: str) -> float:
+    try:
+        contains_metric = metric_path in result
+    except TypeError as exc:
+        raise QlibAshareBanditMetricError(
+            f"{QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE}: result does not expose metric-path membership"
+        ) from exc
+    if not contains_metric:
+        raise QlibAshareBanditMetricError(f"{QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE}: {metric_path}")
+    try:
+        metric_value = float(result[metric_path])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise QlibAshareBanditMetricError(f"{QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE}: {metric_path}") from exc
+    if not math.isfinite(metric_value):
+        raise QlibAshareBanditMetricError(f"{QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE}: {metric_path}")
+    return metric_value
 
 
 class LinearThompsonTwoArm:
