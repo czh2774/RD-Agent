@@ -1,5 +1,5 @@
-from abc import abstractmethod
 import json
+from abc import abstractmethod
 from typing import Any, Tuple
 
 from pydantic import BaseModel, ConfigDict
@@ -64,9 +64,7 @@ def ensure_hypothesis_response_dict(
     if require_action:
         allowed_keys.add("action")
 
-    filtered_payload = {
-        key: value for key, value in normalized_payload.items() if key in allowed_keys
-    }
+    filtered_payload = {key: value for key, value in normalized_payload.items() if key in allowed_keys}
 
     response_type = QuantHypothesisResponse if require_action else HypothesisResponse
     return response_type.model_validate(filtered_payload).model_dump()

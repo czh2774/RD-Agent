@@ -4,7 +4,6 @@ from copy import deepcopy
 from importlib import import_module
 from typing import Any, Mapping
 
-
 REQUIRED_QLIB_CONTRACT_ID = "rdagent_qlib_joinquant_ashare_semantic_contract_v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"

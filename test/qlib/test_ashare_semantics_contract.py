@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import sys
 import types
+from copy import deepcopy
 from typing import Any
 
 import pytest

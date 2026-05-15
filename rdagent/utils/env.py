@@ -859,10 +859,7 @@ class QlibCondaConf(CondaConf):
     def build_qlib_pip_install_command(self) -> str:
         target = self.resolved_qlib_install_target()
         editable_prefix = "-e " if self.should_use_editable_install() else ""
-        return (
-            f"conda run -n {shlex.quote(self.conda_env_name)} "
-            f"pip install {editable_prefix}{shlex.quote(target)}"
-        )
+        return f"conda run -n {shlex.quote(self.conda_env_name)} " f"pip install {editable_prefix}{shlex.quote(target)}"
 
     def bootstrap_package_list(self) -> list[str]:
         return [package for package in self.bootstrap_packages.split() if package]

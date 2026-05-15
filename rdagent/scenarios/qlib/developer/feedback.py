@@ -155,9 +155,7 @@ def normalize_feedback_response(
     if not hypothesis_evaluation:
         hypothesis_assessment = payload.get("hypothesis_assessment")
         if isinstance(hypothesis_assessment, dict) and hypothesis_assessment:
-            hypothesis_evaluation = "; ".join(
-                f"{key}={value}" for key, value in hypothesis_assessment.items()
-            )
+            hypothesis_evaluation = "; ".join(f"{key}={value}" for key, value in hypothesis_assessment.items())
         else:
             hypothesis_evaluation = "No feedback provided"
 
@@ -172,15 +170,9 @@ def normalize_feedback_response(
     )
     if not new_hypothesis:
         hypothesis_assessment = payload.get("hypothesis_assessment")
-        limitations = (
-            hypothesis_assessment.get("limitations")
-            if isinstance(hypothesis_assessment, dict)
-            else None
-        )
+        limitations = hypothesis_assessment.get("limitations") if isinstance(hypothesis_assessment, dict) else None
         if isinstance(limitations, list) and limitations:
-            new_hypothesis = "Address the current limitations: " + "; ".join(
-                str(item) for item in limitations
-            )
+            new_hypothesis = "Address the current limitations: " + "; ".join(str(item) for item in limitations)
         else:
             new_hypothesis = "No new hypothesis provided"
 

@@ -84,7 +84,8 @@ class RLEvolvingStrategy(EvolvingStrategy):
 
     def _mock_code(self) -> dict[str, str]:
         """Fallback mock code."""
-        return {"main.py": """import gymnasium as gym
+        return {
+            "main.py": """import gymnasium as gym
 from stable_baselines3 import PPO
 
 env = gym.make("CartPole-v1")
@@ -92,7 +93,8 @@ model = PPO("MlpPolicy", env, verbose=1)
 model.learn(total_timesteps=1000)
 model.save("ppo_cartpole")
 print("Training completed!")
-"""}
+"""
+        }
 
 
 class RLCoderEvaluator:

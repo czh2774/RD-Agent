@@ -10,8 +10,8 @@ from rdagent.log import rdagent_logger as logger
 from rdagent.oai.backend.base import APIBackend
 from rdagent.oai.llm_conf import (
     LLM_SETTINGS,
-    ReasoningEffort,
     SUPPORTED_REASONING_EFFORTS,
+    ReasoningEffort,
 )
 
 if TYPE_CHECKING:
@@ -35,7 +35,9 @@ if TYPE_CHECKING:
         ) -> tuple[str, str | None]: ...
 
 else:
-    from rdagent.oai.backend.deprec import DeprecBackend as _OpenAIResponsesAPIBackendBase
+    from rdagent.oai.backend.deprec import (
+        DeprecBackend as _OpenAIResponsesAPIBackendBase,
+    )
 
 
 class OpenAIResponsesAPIBackend(_OpenAIResponsesAPIBackendBase):
