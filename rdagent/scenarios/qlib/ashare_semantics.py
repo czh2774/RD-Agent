@@ -89,6 +89,7 @@ QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE = (
     "rdagent_qlib_model_loaders_must_attach_prediction_signal_boundary_to_loaded_model_tasks"
 )
 QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE = "rdagent_qlib_serialized_model_task_loaders_must_attach_prediction_signal_boundary_before_qlib_model_experiment_composition"
+QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE = "rdagent_qlib_serialized_model_benchmark_fixtures_must_use_datetime_instrument_prediction_score_semantics_not_graph_node_or_molecular_outputs"
 QLIB_ASHARE_SUPPORTED_MODEL_TYPES = ("Tabular", "TimeSeries")
 QLIB_ASHARE_FORBIDDEN_MODEL_TYPES = ("Graph", "XGBoost")
 QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS = ("rdagent/components/coder/model_coder/prompts.yaml",)
@@ -262,7 +263,8 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('rdagent_model_evaluator_prompt_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_formulation_prompt_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_loader_boundary_rule')}; "
-        f"{prediction_signal.get('rdagent_model_json_loader_boundary_rule')}."
+        f"{prediction_signal.get('rdagent_model_json_loader_boundary_rule')}; "
+        f"{prediction_signal.get('rdagent_model_benchmark_fixture_boundary_rule')}."
     )
 
 
@@ -410,6 +412,8 @@ def format_rd_agent_ashare_semantic_context(
             f"{prediction_signal.get('rdagent_model_loader_boundary_rule')}",
             "- prediction-signal serialized model loader boundary: "
             f"{prediction_signal.get('rdagent_model_json_loader_boundary_rule')}",
+            "- prediction-signal benchmark fixture boundary: "
+            f"{prediction_signal.get('rdagent_model_benchmark_fixture_boundary_rule')}",
             "- prediction-signal supported model types: "
             + ", ".join(str(item) for item in prediction_signal.get("rdagent_supported_model_types", [])),
             "- prediction-signal forbidden model types: "
@@ -1530,6 +1534,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_formulation_prompt_boundary_rule",
         "rdagent_model_loader_boundary_rule",
         "rdagent_model_json_loader_boundary_rule",
+        "rdagent_model_benchmark_fixture_boundary_rule",
         "rdagent_supported_model_types",
         "rdagent_forbidden_model_types",
         "rdagent_implementation_prompt_paths",
@@ -1569,6 +1574,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_loader_boundary_rule": QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
         "rdagent_model_json_loader_boundary_rule": QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
+        "rdagent_model_benchmark_fixture_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
