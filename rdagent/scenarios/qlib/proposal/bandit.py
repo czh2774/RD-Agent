@@ -6,6 +6,7 @@ import numpy as np
 
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_BANDIT_REWARD_RULE,
@@ -59,7 +60,11 @@ def extract_metrics_from_experiment(experiment) -> Metrics:
     arr = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0])
     ir = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1])
     mdd = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2])
-    drawdown_adjusted_return = arr / abs(mdd) if mdd != 0 else 0.0
+    if mdd > 0:
+        raise QlibAshareBanditMetricError(
+            f"{QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE}: " f"{QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2]}"
+        )
+    drawdown_adjusted_return = 0.0 if mdd == 0 else arr / abs(mdd)
 
     return Metrics(
         ic=ic,
