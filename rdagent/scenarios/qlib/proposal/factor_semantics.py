@@ -27,8 +27,13 @@ _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN = re.compile(
     r"\b(" + "|".join(re.escape(term) for term in _QLIB_ASHARE_DAILY_FIELD_TERMS) + r")\b",
     re.IGNORECASE,
 )
+_FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN = re.compile(
+    r"\b(daily point[- ]in[- ]time|point[- ]in[- ]time)\b",
+    re.IGNORECASE,
+)
 _FACTOR_MARKET_DATA_HINT_PATTERNS = (
     _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN,
+    _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN,
     re.compile(r"\b(price-volume|price volume|momentum|reversal|volatility|price)\b", re.IGNORECASE),
     re.compile(r"\b(alpha|factor|signal|ts_code)\b", re.IGNORECASE),
 )
@@ -38,6 +43,25 @@ _FACTOR_FORBIDDEN_DEFAULT_SOURCE_PATTERNS = (
     re.compile(r"\b(unregistered|vendor)\b", re.IGNORECASE),
     re.compile(r"\bturnover\b", re.IGNORECASE),
 )
+
+
+def _text_has_qlib_daily_data_hint(text: str) -> bool:
+    return any(pattern.search(text) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS)
+
+
+def _text_has_concrete_qlib_source_hint(text: str) -> bool:
+    return bool(
+        _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN.search(text) or _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN.search(text)
+    )
+
+
+def _raise_forbidden_default_source_error(text: str, *, subject: str) -> None:
+    if any(pattern.search(text) for pattern in _FACTOR_FORBIDDEN_DEFAULT_SOURCE_PATTERNS):
+        forbidden = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES) + ", turnover"
+        raise ValueError(
+            f"{subject} must stay within the Qlib daily A-share research data boundary; "
+            f"forbidden default sources include {forbidden}."
+        )
 
 
 def _default_hypothesis_response_normalizer(payload: dict[str, Any]) -> dict[str, Any]:
@@ -87,16 +111,53 @@ def validate_qlib_factor_hypothesis_response(
         raise ValueError(
             "Qlib factor hypotheses must include a concrete market-data factor idea rather than generic screening language."
         )
-    if any(pattern.search(combined_text) for pattern in _FACTOR_FORBIDDEN_DEFAULT_SOURCE_PATTERNS):
-        forbidden = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES) + ", turnover"
-        raise ValueError(
-            "Qlib factor hypotheses must stay within the Qlib daily A-share research data boundary; "
-            f"forbidden default sources include {forbidden}."
-        )
-    if not any(pattern.search(hypothesis) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS):
+    _raise_forbidden_default_source_error(combined_text, subject="Qlib factor hypotheses")
+    if not _text_has_qlib_daily_data_hint(hypothesis):
         allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
         raise ValueError(
             "Qlib factor hypotheses must include concrete market-data alpha directions grounded in "
             f"registered daily Qlib A-share fields ({allowed_fields}) or explicitly supplied daily point-in-time fields."
         )
     return normalized
+
+
+def validate_qlib_factor_experiment_response(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("Qlib factor experiment response must be a non-empty JSON object.")
+
+    normalized_response: dict[str, dict[str, Any]] = {}
+    for factor_name, factor_payload in payload.items():
+        if not isinstance(factor_name, str) or not factor_name.strip():
+            raise ValueError("Qlib factor experiment response must use non-empty string factor names.")
+        if not isinstance(factor_payload, dict):
+            raise ValueError(f"Qlib factor experiment output for {factor_name!r} must be a JSON object.")
+
+        description = factor_payload.get("description")
+        formulation = factor_payload.get("formulation")
+        variables = factor_payload.get("variables")
+        if not isinstance(description, str) or not isinstance(formulation, str) or not isinstance(variables, dict):
+            raise ValueError(
+                f"Qlib factor experiment output for {factor_name!r} must include string description, "
+                "string formulation, and object variables fields."
+            )
+        if not all(isinstance(key, str) and isinstance(value, str) for key, value in variables.items()):
+            raise ValueError(f"Qlib factor experiment variables for {factor_name!r} must be string-to-string entries.")
+
+        combined_text = "\n".join(
+            [factor_name, description, formulation] + [f"{key}: {value}" for key, value in variables.items()]
+        )
+        _raise_forbidden_default_source_error(combined_text, subject="Qlib factor experiment outputs")
+        if not _text_has_concrete_qlib_source_hint(combined_text):
+            allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
+            raise ValueError(
+                f"Qlib factor experiment output for {factor_name!r} must bind its description, formulation, "
+                f"and variables to registered daily Qlib A-share fields ({allowed_fields}) or explicitly supplied "
+                "daily point-in-time fields."
+            )
+
+        normalized_response[factor_name] = {
+            "description": description,
+            "formulation": formulation,
+            "variables": dict(variables),
+        }
+    return normalized_response

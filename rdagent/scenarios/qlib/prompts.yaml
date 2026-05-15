@@ -120,6 +120,8 @@ factor_hypothesis_specification: |-
 
 factor_experiment_output_format: |-
   The output should follow JSON format. The schema is as follows:
+  Every factor description, formulation, and variables map must bind the factor to Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`) or explicitly supplied daily point-in-time fields.
+  Do not use turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs.
   {
       "factor name 1": {
           "description": "description of factor 1, start with its type, e.g. [Momentum Factor]",

@@ -12,6 +12,7 @@ from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperi
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.scenarios.qlib.proposal.factor_semantics import (
+    validate_qlib_factor_experiment_response,
     validate_qlib_factor_hypothesis_response,
 )
 from rdagent.utils.agent.tpl import T
@@ -102,7 +103,7 @@ class QlibFactorHypothesis2Experiment(FactorHypothesis2Experiment):
         }, True
 
     def convert_response(self, response: str, hypothesis: Hypothesis, trace: Trace) -> FactorExperiment:
-        response_dict = json.loads(response)
+        response_dict = validate_qlib_factor_experiment_response(json.loads(response))
         tasks = []
 
         for factor_name in response_dict:
