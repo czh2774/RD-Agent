@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 REQUIRED_QLIB_CONTRACT_ID = "rdagent_qlib_joinquant_ashare_semantic_contract_v1"
 REQUIRED_QLIB_RUNTIME_HANDOFF_ID = "qlib_joinquant_ashare_runtime_handoff_v1"
+REQUIRED_QLIB_PROMPT_PROJECTION_ID = "qlib_joinquant_ashare_prompt_projection_v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"
 
@@ -50,6 +51,7 @@ def build_rd_agent_ashare_semantic_context(
     failure_semantics = _mapping(qlib_contract.get("failure_semantics"))
     evidence_contract = _mapping(qlib_contract.get("evidence_contract"))
     projection_contract = _mapping(qlib_contract.get("projection_contract"))
+    prompt_projection_payload = _mapping(qlib_contract.get("prompt_projection_payload"))
     return {
         "schema_version": "rdagent_ashare_semantic_context.v1",
         "context_id": "rdagent_consumes_qlib_joinquant_ashare_semantics_v1",
@@ -73,12 +75,12 @@ def build_rd_agent_ashare_semantic_context(
         "failure_contract": deepcopy(failure_semantics),
         "qlib_evidence_contract": deepcopy(evidence_contract),
         "prompt_projection": deepcopy(projection_contract),
+        "prompt_projection_payload": deepcopy(prompt_projection_payload),
         "prompt_rules": [
             "Use A-share market semantics only from qlib.backtest.ashare_semantics.",
             "Render only the Qlib-declared prompt projection; do not expose raw runtime kwargs as prompt authority.",
             "Treat generated factors and models as candidates until Qlib execution and downstream governance evidence exist.",
         ],
-        "qlib_market_semantics": deepcopy(qlib_contract["market_semantics"]),
     }
 
 
@@ -122,7 +124,8 @@ def format_rd_agent_ashare_semantic_context(
     else:
         payload = build_rd_agent_ashare_semantic_context(context)
     boundary = _mapping(payload.get("relationship_boundary"))
-    market = _mapping(payload.get("qlib_market_semantics"))
+    prompt_payload = _mapping(payload.get("prompt_projection_payload"))
+    market = _mapping(prompt_payload.get("market_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
     return "\n".join(
@@ -274,6 +277,46 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
                 f"pyqlib A-share contract projection_contract must forbid prompt field {key}"
             )
 
+    prompt_payload = _mapping(contract.get("prompt_projection_payload"))
+    if prompt_payload.get("projection_id") != REQUIRED_QLIB_PROMPT_PROJECTION_ID:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must declare the Qlib prompt projection id"
+        )
+    if prompt_payload.get("contract_id") != REQUIRED_QLIB_CONTRACT_ID:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must preserve the contract id"
+        )
+    if prompt_payload.get("schema_version") != "qlib_ashare_semantic_contract.v1":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must preserve the schema version"
+        )
+    if prompt_payload.get("source_component") != QLIB_ASHARE_AUTHORITY_COMPONENT:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must name Qlib authority"
+        )
+    if prompt_payload.get("consumer_component") != RDAGENT_ASHARE_CONSUMER_COMPONENT:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must name RD-Agent consumer"
+        )
+    if prompt_payload.get("semantic_fingerprint") != evidence_contract["semantic_fingerprint"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload must preserve the semantic fingerprint"
+        )
+    prompt_market = _mapping(prompt_payload.get("market_semantics"))
+    for key in (
+        "market",
+        "region",
+        "trade_unit",
+        "position_type",
+        "limit_threshold",
+        "authoritative_limit_fields",
+    ):
+        if key not in prompt_market:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload market_semantics must include {key}"
+            )
+    _assert_no_forbidden_prompt_projection_payload(prompt_payload)
+
     market = _mapping(contract.get("market_semantics"))
     for key in (
         "trade_unit",
@@ -362,3 +405,28 @@ def _string_list(value: Any) -> list[str]:
 
 def _is_sha256_hex(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
+
+
+def _assert_no_forbidden_prompt_projection_payload(value: Any) -> None:
+    forbidden_keys = {
+        "runtime_surfaces",
+        "policy_defaults",
+        "exchange_kwargs",
+        "backtest_kwargs",
+        "cost_model",
+        "open_cost",
+        "close_cost",
+        "close_commission",
+        "close_tax",
+        "min_cost",
+    }
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if str(key) in forbidden_keys:
+                raise QlibAshareSemanticContractError(
+                    f"pyqlib A-share contract prompt_projection_payload must not expose {key}"
+                )
+            _assert_no_forbidden_prompt_projection_payload(item)
+    elif isinstance(value, list):
+        for item in value:
+            _assert_no_forbidden_prompt_projection_payload(item)
