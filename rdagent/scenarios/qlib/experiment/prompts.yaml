@@ -11,7 +11,7 @@ qlib_quant_background: |-
 
 qlib_factor_background: |-
   The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
-  Each number in the factor represents a physics value to an instrument on a day.
+  Each number in the factor represents a Qlib feature scalar for an instrument on a trading day.
   User will train a model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values of the previous days.
   The factor is defined in the following parts:
   1. Name: The name of the factor.
@@ -100,7 +100,7 @@ qlib_factor_simulator: |-
   User will use Qlib to automatically do the following things:
   1. generate a new factor table based on the factor values.
   2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
-  3. build a portfolio based on the predicted return based on a strategy.
+  3. build a portfolio by passing the Qlib prediction signal score through a strategy.
   4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
 
 qlib_factor_rich_style_description : |-
@@ -165,8 +165,8 @@ qlib_factor_experiment_setting: |-
 
 
 qlib_model_background: |-
-  The model is a machine learning or deep learning structure used in quantitative investment to predict the returns and risks of a portfolio or a single asset. Models are employed by investors to generate forecasts based on historical data and identified factors, which are central to many quantitative investment strategies.
-  Each model takes the factors as input and predicts the future returns. Usually, the bigger the model is, the better the performance would be.
+  The model is a machine learning or deep learning structure used in quantitative investment to produce a Qlib prediction signal score for a portfolio or a single asset. Models are employed by investors to generate forecasts based on historical data and identified factors, which are central to many quantitative investment strategies.
+  Each model takes the factors as input and produces a Qlib prediction signal score for the Qlib contract-defined LABEL0 forward return. Usually, the bigger the model is, the better the performance would be.
   The model is defined in the following parts:
   1. Name: The name of the model.
   2. Description: The description of the model.
@@ -223,12 +223,12 @@ qlib_model_output_format: |-
   The user will evaluate the shape of the output tensor so the tensor read from "output.pth" should be 8 numbers.
 
 qlib_model_simulator: |-
-  The models will be sent into Qlib to train and evaluate their performance in predicting future returns. Hypothesis is improved upon checking the feedback on the results. 
+  The models will be sent into Qlib to train and evaluate their performance in producing the Qlib prediction signal score for LABEL0. Hypothesis is improved upon checking the feedback on the results.
   Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms, including supervised learning, market dynamics modeling, and reinforcement learning (RL).
   User will use Qlib to automatically perform the following tasks:
   1. Generate a baseline factor table.
   2. Train the model defined in your class Net to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
-  3. Build a portfolio based on the predicted returns using a specific strategy.
+  3. Build a portfolio from the Qlib prediction signal score using a specific strategy.
   4. Evaluate the portfolio's performance, including metrics such as return, IC, max drawdown, and others.
   5. Iterate on growing the hypothesis to enable model improvements based on performance evaluations and feedback.
 

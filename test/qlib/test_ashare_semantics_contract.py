@@ -19,6 +19,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS,
+    QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS,
     QLIB_ASHARE_PROMPT_METRIC_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
     QLIB_ASHARE_UI_SELECTED_METRICS,
@@ -256,6 +257,33 @@ def _supervised_label_semantics() -> dict[str, Any]:
     }
 
 
+def _prediction_signal_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_prediction_signal_score",
+        "model_signal_authority": "qlib.backtest.signal.ModelSignal",
+        "signal_cache_authority": "qlib.backtest.signal.SignalWCache",
+        "signal_interface_authority": "qlib.backtest.signal.Signal.get_signal",
+        "signal_record_authority": "qlib.workflow.record_temp.SignalRecord",
+        "strategy_consumption_authority": (
+            "qlib.contrib.strategy.signal_strategy.TopkDropoutStrategy.generate_trade_decision"
+        ),
+        "prediction_artifact": "pred.pkl",
+        "prediction_column": "score",
+        "model_predict_rule": "model_predict_output_is_prediction_score_not_realized_or_executable_return",
+        "series_prediction_rule": "series_prediction_is_saved_as_score_column",
+        "dataframe_prediction_rule": "first_prediction_column_is_used_when_prediction_is_dataframe",
+        "resample_rule": "SignalWCache_uses_last_signal_between_decision_start_and_end",
+        "strategy_ranking_rule": "TopkDropoutStrategy_sorts_prediction_scores_descending_for_candidate_selection",
+        "missing_signal_rule": "missing_signal_returns_empty_TradeDecisionWO",
+        "label_alignment_rule": "prediction_score_is_trained_against_qlib_owned_LABEL0_without_redefining_return_horizon",
+        "prompt_wording_rule": (
+            "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
+        ),
+        "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
+        "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
+    }
+
+
 def _signal_ic_semantics() -> dict[str, Any]:
     return {
         "semantic_name": "a_share_signal_information_coefficient",
@@ -373,7 +401,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, signal IC, portfolio risk analysis, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -408,6 +436,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_executor_decision_lifecycle_or_nested_execution_order",
                 "redefine_strategy_signal_to_order_generation",
                 "redefine_supervised_label_expression_or_horizon",
+                "redefine_prediction_signal_score_or_return_realization",
                 "redefine_signal_ic_or_rank_ic_metrics",
                 "redefine_portfolio_risk_analysis_metrics",
                 "redefine_benchmark_return_series_or_default_benchmark",
@@ -446,6 +475,7 @@ def _valid_contract() -> dict[str, Any]:
                 "executor_decision_semantics",
                 "strategy_order_semantics",
                 "supervised_label_semantics",
+                "prediction_signal_semantics",
                 "signal_ic_semantics",
                 "portfolio_risk_semantics",
                 "benchmark_return_semantics",
@@ -487,6 +517,7 @@ def _valid_contract() -> dict[str, Any]:
                 "executor_decision_semantics",
                 "strategy_order_semantics",
                 "supervised_label_semantics",
+                "prediction_signal_semantics",
                 "signal_ic_semantics",
                 "portfolio_risk_semantics",
                 "benchmark_return_semantics",
@@ -730,6 +761,7 @@ def _valid_contract() -> dict[str, Any]:
             "executor_decision_semantics": _executor_decision_semantics(),
             "strategy_order_semantics": _strategy_order_semantics(),
             "supervised_label_semantics": _supervised_label_semantics(),
+            "prediction_signal_semantics": _prediction_signal_semantics(),
             "signal_ic_semantics": _signal_ic_semantics(),
             "portfolio_risk_semantics": _portfolio_risk_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
@@ -885,6 +917,7 @@ def _valid_contract() -> dict[str, Any]:
             "executor_decision_semantics",
             "strategy_order_semantics",
             "supervised_label_semantics",
+            "prediction_signal_semantics",
             "signal_ic_semantics",
             "portfolio_risk_semantics",
             "benchmark_return_semantics",
@@ -962,6 +995,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_executor_decision_lifecycle_or_nested_execution_order" in boundary["rdagent_forbidden_actions"]
     assert "redefine_strategy_signal_to_order_generation" in boundary["rdagent_forbidden_actions"]
     assert "redefine_supervised_label_expression_or_horizon" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_prediction_signal_score_or_return_realization" in boundary["rdagent_forbidden_actions"]
     assert "redefine_signal_ic_or_rank_ic_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_portfolio_risk_analysis_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_benchmark_return_series_or_default_benchmark" in boundary["rdagent_forbidden_actions"]
@@ -982,6 +1016,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "executor_decision_semantics",
         "strategy_order_semantics",
         "supervised_label_semantics",
+        "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
@@ -1061,6 +1096,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["executor_decision_semantics"] == _executor_decision_semantics()
     assert context["prompt_projection_payload"]["strategy_order_semantics"] == _strategy_order_semantics()
     assert context["prompt_projection_payload"]["supervised_label_semantics"] == _supervised_label_semantics()
+    assert context["prompt_projection_payload"]["prediction_signal_semantics"] == _prediction_signal_semantics()
     assert context["prompt_projection_payload"]["signal_ic_semantics"] == _signal_ic_semantics()
     assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
     assert context["prompt_projection_payload"]["benchmark_return_semantics"] == _benchmark_return_semantics()
@@ -1936,6 +1972,46 @@ def test_rd_agent_prompts_describe_qlib_owned_supervised_label_without_vague_hor
         assert "next several days' returns" not in prompt_text
 
 
+def test_malformed_qlib_prompt_projection_without_prediction_signal_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["prediction_signal_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_prediction_signal_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "model_signal_authority"
+    ] = "rdagent.scenarios.qlib.Signal"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_prediction_signal_wording_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "prompt_wording_rule"
+    ] = "describe_as_predicted_future_return"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_rd_agent_prompts_describe_prediction_signal_without_realized_return_claims() -> None:
+    combined = "\n".join((REPO_ROOT / path).read_text() for path in QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS)
+    experiment_prompt = (REPO_ROOT / "rdagent/scenarios/qlib/experiment/prompts.yaml").read_text()
+
+    assert "Qlib prediction signal score for LABEL0" in combined
+    assert "predicting future returns" not in combined
+    assert "predicts the future returns" not in combined
+    assert "predicted returns" not in combined
+    assert "predicted return based on a strategy" not in combined
+    assert "physics value" not in experiment_prompt
+
+
 def test_malformed_qlib_prompt_projection_without_signal_ic_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["signal_ic_semantics"]
@@ -2334,6 +2410,20 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "supervised-label prompt wording: "
         "describe_as_qlib_contract_defined_forward_return_label_not_undefined_next_several_days_return"
     ) in text
+    assert "prediction-signal authority: pyqlib (qlib.backtest.signal.ModelSignal)" in text
+    assert "prediction-signal artifact: pred.pkl" in text
+    assert "prediction-signal column: score" in text
+    assert (
+        "prediction-signal model rule: " "model_predict_output_is_prediction_score_not_realized_or_executable_return"
+    ) in text
+    assert (
+        "prediction-signal ranking rule: "
+        "TopkDropoutStrategy_sorts_prediction_scores_descending_for_candidate_selection"
+    ) in text
+    assert (
+        "prediction-signal prompt wording: "
+        "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
+    ) in text
     assert "signal-ic authority: pyqlib (qlib.workflow.record_temp.SigAnaRecord)" in text
     assert "signal-ic calculation: pyqlib (qlib.contrib.eva.alpha.calc_ic)" in text
     assert "signal-ic metrics: IC, ICIR, Rank IC, Rank ICIR" in text
@@ -2454,7 +2544,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, signal_ic_semantics, portfolio_risk_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "

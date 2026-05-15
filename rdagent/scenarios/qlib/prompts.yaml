@@ -92,6 +92,7 @@ model_hypothesis_specification: |-
   6. Avoid including aspects unrelated to architecture, such as input features or optimization strategies.
   7. Sometimes, when training performance is poor, adjusting hyperparameters can also be an effective strategy for improvement.
   8. Use standard libraries for baseline models, but also explore custom architecture designs to investigate novel structures. After sufficient trials with traditional models, aim for innovation comparable to top-tier AI conferences (NeurIPS, ICLR, ICML, SIGKDD, etc.) in time series modeling.
+  9. Treat the model output as a Qlib prediction signal score for LABEL0, not a realized return or guaranteed portfolio return.
 
 factor_hypothesis_specification: |-
   1. **1-5 Factors per Generation:**
@@ -114,6 +115,7 @@ factor_hypothesis_specification: |-
   6. Guardrails
     - Do not output software-debugging categories or setup, configuration, calibration style plans.
     - Always propose concrete market-data alpha directions grounded in actual price, volume, turnover, return, or related financial fields.
+    - Treat model outputs as Qlib prediction signal scores for LABEL0, not realized returns or guaranteed portfolio returns.
 
 factor_experiment_output_format: |-
   The output should follow JSON format. The schema is as follows:
