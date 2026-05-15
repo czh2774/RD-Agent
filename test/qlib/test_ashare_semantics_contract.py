@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -29,6 +30,8 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
+    QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE,
+    QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT,
     QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE,
     QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
@@ -352,6 +355,8 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_benchmark_identity_rule": QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE,
         "rdagent_model_benchmark_task_name": QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME,
         "rdagent_model_benchmark_surface_paths": list(QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS),
+        "rdagent_model_benchmark_evidence_rule": QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE,
+        "rdagent_model_benchmark_execution_contract": deepcopy(QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT),
         "rdagent_model_execution_template_boundary_rule": QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
         "rdagent_model_one_shot_prompt_boundary_rule": QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
         "rdagent_model_execution_surface_paths": list(QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS),
@@ -1822,6 +1827,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE in boundary
     assert QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
@@ -1953,11 +1959,13 @@ def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_sig
     boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
     assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE in boundary
 
     gt_code_path = REPO_ROOT / "rdagent/components/coder/model_coder/benchmark/gt_code"
     assert sorted(path.name for path in gt_code_path.glob("*.py")) == ["QlibAshareTemporalScore.py"]
 
     reference_source = (gt_code_path / "QlibAshareTemporalScore.py").read_text()
+    reference_ast = ast.parse(reference_source)
     evaluator_source = (REPO_ROOT / "rdagent/components/coder/model_coder/benchmark/eval.py").read_text()
     active_source = reference_source + "\n" + evaluator_source
     for forbidden in (
@@ -1974,6 +1982,39 @@ def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_sig
     assert "num_timesteps" in reference_source
     assert "num_features" in reference_source
     assert "score_head" in reference_source
+    execution_contract = QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT
+    assert execution_contract["model_class"] == "QlibAshareTemporalScoreModel"
+    assert execution_contract["model_cls_symbol"] == "model_cls"
+    assert execution_contract["model_type"] == "TimeSeries"
+    assert execution_contract["input_tensor_name"] == "feature_window"
+    assert execution_contract["input_rank"] == 3
+    assert execution_contract["input_axes"] == ["batch_size", "datetime_window", "feature"]
+    assert execution_contract["required_init_kwargs"] == ["num_features", "num_timesteps"]
+    assert execution_contract["output_shape"] == ["batch_size", 1]
+    assert execution_contract["score_head_name"] == "score_head"
+    class_names = {node.name for node in reference_ast.body if isinstance(node, ast.ClassDef)}
+    assert execution_contract["model_class"] in class_names
+    assignments = [
+        node
+        for node in reference_ast.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == execution_contract["model_cls_symbol"] for target in node.targets)
+    ]
+    assert assignments
+    assert isinstance(assignments[0].value, ast.Name)
+    assert assignments[0].value.id == execution_contract["model_class"]
+    model_class = next(
+        node
+        for node in reference_ast.body
+        if isinstance(node, ast.ClassDef) and node.name == execution_contract["model_class"]
+    )
+    forward_methods = [
+        node for node in model_class.body if isinstance(node, ast.FunctionDef) and node.name == "forward"
+    ]
+    assert len(forward_methods) == 1
+    assert forward_methods[0].args.args[1].arg == execution_contract["input_tensor_name"]
+    assert "feature_window.ndim != 3" in reference_source
+    assert "return self.score_head(hidden[-1])" in reference_source
     for relative_path in QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS:
         assert (REPO_ROOT / relative_path).exists()
     assert "torch.full((batch_size, num_timesteps, num_features), init_val)" in evaluator_source
@@ -3111,6 +3152,26 @@ def test_malformed_qlib_prompt_projection_with_missing_model_benchmark_surface_p
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_evidence_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_benchmark_evidence_rule"
+    ] = "rdagent_qlib_model_benchmark_reference_code_may_emit_unshaped_outputs"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_execution_contract_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_benchmark_execution_contract"
+    ]["output_shape"] = ["batch_size"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_model_execution_template_boundary_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"][
@@ -3864,6 +3925,8 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "prediction-signal benchmark surfaces: "
         + ", ".join(str(path) for path in QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS)
     ) in text
+    assert f"prediction-signal benchmark evidence rule: {QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE}" in text
+    assert f"prediction-signal benchmark execution contract: {QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT}" in text
     assert (
         "prediction-signal execution template boundary: "
         f"{QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE}"

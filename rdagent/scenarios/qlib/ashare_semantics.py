@@ -98,6 +98,18 @@ QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS = (
     "rdagent/components/coder/model_coder/benchmark/gt_code/QlibAshareTemporalScore.py",
     "rdagent/app/benchmark/model/eval.py",
 )
+QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE = "rdagent_qlib_model_benchmark_reference_code_must_emit_batch_size_by_one_prediction_score_tensor_from_declared_timeseries_feature_window"
+QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT = {
+    "model_class": "QlibAshareTemporalScoreModel",
+    "model_cls_symbol": "model_cls",
+    "model_type": "TimeSeries",
+    "input_tensor_name": "feature_window",
+    "input_rank": 3,
+    "input_axes": ["batch_size", "datetime_window", "feature"],
+    "required_init_kwargs": ["num_features", "num_timesteps"],
+    "output_shape": ["batch_size", 1],
+    "score_head_name": "score_head",
+}
 QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE = "rdagent_qlib_model_execution_templates_must_execute_tabular_or_timeseries_prediction_score_tensors_and_fail_closed_without_torch_geometric_graph_inputs"
 QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_one_shot_prompts_must_request_tabular_or_timeseries_prediction_score_models_not_torch_geometric_graph_models"
 QLIB_ASHARE_SUPPORTED_MODEL_TYPES = ("Tabular", "TimeSeries")
@@ -282,6 +294,7 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('rdagent_model_benchmark_fixture_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_benchmark_reference_code_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_benchmark_identity_rule')}; "
+        f"{prediction_signal.get('rdagent_model_benchmark_evidence_rule')}; "
         f"{prediction_signal.get('rdagent_model_execution_template_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_one_shot_prompt_boundary_rule')}."
     )
@@ -440,6 +453,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- prediction-signal benchmark task name: {prediction_signal.get('rdagent_model_benchmark_task_name')}",
             "- prediction-signal benchmark surfaces: "
             + ", ".join(str(item) for item in prediction_signal.get("rdagent_model_benchmark_surface_paths", [])),
+            "- prediction-signal benchmark evidence rule: "
+            f"{prediction_signal.get('rdagent_model_benchmark_evidence_rule')}",
+            "- prediction-signal benchmark execution contract: "
+            f"{prediction_signal.get('rdagent_model_benchmark_execution_contract')}",
             "- prediction-signal execution template boundary: "
             f"{prediction_signal.get('rdagent_model_execution_template_boundary_rule')}",
             "- prediction-signal one-shot prompt boundary: "
@@ -1571,6 +1588,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_benchmark_identity_rule",
         "rdagent_model_benchmark_task_name",
         "rdagent_model_benchmark_surface_paths",
+        "rdagent_model_benchmark_evidence_rule",
+        "rdagent_model_benchmark_execution_contract",
         "rdagent_model_execution_template_boundary_rule",
         "rdagent_model_one_shot_prompt_boundary_rule",
         "rdagent_model_execution_surface_paths",
@@ -1618,6 +1637,8 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_benchmark_identity_rule": QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE,
         "rdagent_model_benchmark_task_name": QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME,
         "rdagent_model_benchmark_surface_paths": list(QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS),
+        "rdagent_model_benchmark_evidence_rule": QLIB_ASHARE_MODEL_BENCHMARK_EVIDENCE_RULE,
+        "rdagent_model_benchmark_execution_contract": QLIB_ASHARE_MODEL_BENCHMARK_EXECUTION_CONTRACT,
         "rdagent_model_execution_template_boundary_rule": QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
         "rdagent_model_one_shot_prompt_boundary_rule": QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
         "rdagent_model_execution_surface_paths": list(QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS),
