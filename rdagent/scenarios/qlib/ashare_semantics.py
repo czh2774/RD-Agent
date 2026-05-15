@@ -57,6 +57,7 @@ QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE = (
     "alpha158_alpha360_derived_features_must_be_computed_only_from_registered_daily_price_volume_fields"
 )
 QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE = "user_or_provider_supplied_non_price_volume_fields_must_name_source_owner_field_identity_and_daily_point_in_time_validity"
+QLIB_ASHARE_PROMPT_OBLIGATION_RULE = "rdagent_factor_extraction_viability_relevance_and_implementation_prompts_must_apply_source_boundary_forbidden_defaults_and_turnover_distinction"
 QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE = (
     "turnover_is_not_a_default_factor_input_field_even_when_qlib_reports_portfolio_turnover"
 )
@@ -427,6 +428,7 @@ def format_rd_agent_ashare_semantic_context(
             "- research data-source forbidden defaults: "
             + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
             f"- research data-source PIT registration: {research_data_source.get('point_in_time_registration_rule')}",
+            f"- research data-source prompt obligation: {research_data_source.get('rdagent_prompt_obligation_rule')}",
             f"- research data-source turnover input boundary: {research_data_source.get('turnover_input_boundary_rule')}",
             f"- research data-source rule: {research_data_source.get('rdagent_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
@@ -1924,6 +1926,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
         "turnover_input_boundary_rule": QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
+        "rdagent_prompt_obligation_rule": QLIB_ASHARE_PROMPT_OBLIGATION_RULE,
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
         "rdagent_rule": "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources",
     }
