@@ -26,7 +26,10 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS,
     QLIB_ASHARE_PROMPT_METRIC_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    QLIB_ASHARE_TEMPLATE_BENCHMARK,
+    QLIB_ASHARE_TEMPLATE_MARKET,
     QLIB_ASHARE_UI_SELECTED_METRICS,
+    QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS,
     QlibAshareSemanticContractError,
     append_ashare_semantic_context,
     build_rd_agent_ashare_runtime_handoff,
@@ -411,6 +414,26 @@ def _benchmark_return_semantics() -> dict[str, Any]:
     }
 
 
+def _universe_benchmark_binding_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_rd_agent_universe_benchmark_binding",
+        "market_universe_authority": "qlib.tests.config.CSI300_MARKET",
+        "benchmark_authority": "qlib.tests.config.CSI300_BENCH",
+        "template_market_value": QLIB_ASHARE_TEMPLATE_MARKET,
+        "template_benchmark_value": QLIB_ASHARE_TEMPLATE_BENCHMARK,
+        "template_market_anchor": f"market: &market {QLIB_ASHARE_TEMPLATE_MARKET}",
+        "template_instruments_binding": "instruments: *market",
+        "template_benchmark_anchor": f"benchmark: &benchmark {QLIB_ASHARE_TEMPLATE_BENCHMARK}",
+        "template_backtest_benchmark_binding": "benchmark: *benchmark",
+        "market_universe_rule": "csi300_template_market_selects_instruments_only",
+        "benchmark_rule": "SH000300_template_benchmark_is_portfolio_excess_return_baseline_only",
+        "separation_rule": "market_universe_membership_and_benchmark_return_series_are_not_substitutable",
+        "forbidden_template_values": ["all_a", "all", "SH000300_as_market", "csi300_as_benchmark"],
+        "rdagent_template_paths": list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS),
+        "rdagent_rule": "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -425,7 +448,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, feedback metric consumption, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, feedback metric consumption, benchmark return, universe/benchmark binding, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -465,6 +488,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_portfolio_risk_analysis_metrics",
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
                 "redefine_benchmark_return_series_or_default_benchmark",
+                "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -505,6 +529,7 @@ def _valid_contract() -> dict[str, Any]:
                 "portfolio_risk_semantics",
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
+                "universe_benchmark_binding_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -548,6 +573,7 @@ def _valid_contract() -> dict[str, Any]:
                 "portfolio_risk_semantics",
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
+                "universe_benchmark_binding_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -793,6 +819,7 @@ def _valid_contract() -> dict[str, Any]:
             "portfolio_risk_semantics": _portfolio_risk_semantics(),
             "feedback_metric_semantics": _feedback_metric_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
+            "universe_benchmark_binding_semantics": _universe_benchmark_binding_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -950,6 +977,7 @@ def _valid_contract() -> dict[str, Any]:
             "portfolio_risk_semantics",
             "feedback_metric_semantics",
             "benchmark_return_semantics",
+            "universe_benchmark_binding_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -1032,6 +1060,10 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         in boundary["rdagent_forbidden_actions"]
     )
     assert "redefine_benchmark_return_series_or_default_benchmark" in boundary["rdagent_forbidden_actions"]
+    assert (
+        "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark"
+        in boundary["rdagent_forbidden_actions"]
+    )
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -1054,6 +1086,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "portfolio_risk_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
+        "universe_benchmark_binding_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1135,6 +1168,10 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
     assert context["prompt_projection_payload"]["feedback_metric_semantics"] == _feedback_metric_semantics()
     assert context["prompt_projection_payload"]["benchmark_return_semantics"] == _benchmark_return_semantics()
+    assert (
+        context["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
+        == _universe_benchmark_binding_semantics()
+    )
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -1253,6 +1290,7 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     portfolio = contract["prompt_projection_payload"]["portfolio_risk_semantics"]
     feedback = contract["prompt_projection_payload"]["feedback_metric_semantics"]
     signal = contract["prompt_projection_payload"]["signal_ic_semantics"]
+    binding = contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
 
     assert list(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS) == signal["rdagent_consumed_metric_paths"]
     assert list(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS) == portfolio["rdagent_prompt_metric_paths"]
@@ -1271,6 +1309,9 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC == feedback["feedback_primary_metric"]
     assert QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME == feedback["derived_bandit_utility_name"]
     assert list(QLIB_ASHARE_UI_SELECTED_METRICS) == ["IC", *portfolio["rdagent_ui_metric_paths"]]
+    assert QLIB_ASHARE_TEMPLATE_MARKET == binding["template_market_value"]
+    assert QLIB_ASHARE_TEMPLATE_BENCHMARK == binding["template_benchmark_value"]
+    assert list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS) == binding["rdagent_template_paths"]
     assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
 
 
@@ -1294,6 +1335,24 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     for path in QLIB_ASHARE_PROMPT_METRIC_PATHS:
         assert path in prompts_source
     assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
+
+
+def test_rd_agent_templates_bind_qlib_owned_universe_and_benchmark_without_cross_aliasing() -> None:
+    contract = _valid_contract()
+    binding = contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
+
+    for relative_path in QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS:
+        template_text = (REPO_ROOT / relative_path).read_text()
+
+        assert binding["template_market_anchor"] in template_text
+        assert binding["template_instruments_binding"] in template_text
+        assert binding["template_benchmark_anchor"] in template_text
+        assert binding["template_backtest_benchmark_binding"] in template_text
+        assert "instruments: *benchmark" not in template_text
+        assert "benchmark: *market" not in template_text
+        for forbidden_value in binding["forbidden_template_values"]:
+            assert f"market: &market {forbidden_value}" not in template_text
+            assert f"benchmark: &benchmark {forbidden_value}" not in template_text
 
 
 def test_rd_agent_feedback_metric_prompts_use_exact_qlib_paths_without_sharpe_alias() -> None:
@@ -2260,6 +2319,52 @@ def test_malformed_qlib_prompt_projection_with_mutable_benchmark_sample_rule_fai
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_universe_benchmark_binding_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_benchmark_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_universe_template_value_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"]["template_market_value"] = "all_a"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_benchmark_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_benchmark_template_value_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"][
+        "template_benchmark_value"
+    ] = "SH000905"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_benchmark_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_cross_aliased_universe_benchmark_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"][
+        "template_benchmark_value"
+    ] = QLIB_ASHARE_TEMPLATE_MARKET
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_benchmark_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_universe_benchmark_separation_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"][
+        "separation_rule"
+    ] = "market_universe_membership_and_benchmark_return_series_are_substitutable"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_benchmark_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -2586,6 +2691,20 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         text
     )
     assert "benchmark-return report column: bench" in text
+    assert f"universe-benchmark market value: {QLIB_ASHARE_TEMPLATE_MARKET}" in text
+    assert f"universe-benchmark benchmark value: {QLIB_ASHARE_TEMPLATE_BENCHMARK}" in text
+    assert "universe-benchmark market rule: csi300_template_market_selects_instruments_only" in text
+    assert (
+        "universe-benchmark benchmark rule: " "SH000300_template_benchmark_is_portfolio_excess_return_baseline_only"
+    ) in text
+    assert (
+        "universe-benchmark separation rule: "
+        "market_universe_membership_and_benchmark_return_series_are_not_substitutable"
+    ) in text
+    assert (
+        "universe-benchmark template rule: "
+        "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing"
+    ) in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -2673,7 +2792,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, feedback_metric_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "

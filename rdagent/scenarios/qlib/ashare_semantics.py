@@ -19,6 +19,9 @@ QLIB_ASHARE_LABEL_TEMPLATE_PATHS = (
     "rdagent/scenarios/qlib/experiment/model_template/conf_baseline_factors_model.yaml",
     "rdagent/scenarios/qlib/experiment/model_template/conf_sota_factors_model.yaml",
 )
+QLIB_ASHARE_TEMPLATE_MARKET = "csi300"
+QLIB_ASHARE_TEMPLATE_BENCHMARK = "SH000300"
+QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS = QLIB_ASHARE_LABEL_TEMPLATE_PATHS
 QLIB_ASHARE_LABEL_PROMPT_PATHS = ("rdagent/scenarios/qlib/experiment/prompts.yaml",)
 QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
@@ -194,6 +197,7 @@ def format_rd_agent_ashare_semantic_context(
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
+    universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -330,6 +334,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- benchmark-return field: {benchmark_return.get('benchmark_field_expression')}",
             f"- benchmark-return sample rule: {benchmark_return.get('sample_rule')}",
             f"- benchmark-return report column: {benchmark_return.get('report_column')}",
+            f"- universe-benchmark market value: {universe_benchmark_binding.get('template_market_value')}",
+            f"- universe-benchmark benchmark value: {universe_benchmark_binding.get('template_benchmark_value')}",
+            f"- universe-benchmark market rule: {universe_benchmark_binding.get('market_universe_rule')}",
+            f"- universe-benchmark benchmark rule: {universe_benchmark_binding.get('benchmark_rule')}",
+            f"- universe-benchmark separation rule: {universe_benchmark_binding.get('separation_rule')}",
+            f"- universe-benchmark template rule: {universe_benchmark_binding.get('rdagent_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -484,6 +494,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_portfolio_risk_analysis_metrics",
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "redefine_benchmark_return_series_or_default_benchmark",
+        "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -540,6 +551,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "portfolio_risk_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
+        "universe_benchmark_binding_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -581,6 +593,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "portfolio_risk_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
+        "universe_benchmark_binding_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1644,6 +1657,68 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"benchmark_return_semantics must preserve {key}"
             )
+    universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
+    for key in (
+        "semantic_name",
+        "market_universe_authority",
+        "benchmark_authority",
+        "template_market_value",
+        "template_benchmark_value",
+        "template_market_anchor",
+        "template_instruments_binding",
+        "template_benchmark_anchor",
+        "template_backtest_benchmark_binding",
+        "market_universe_rule",
+        "benchmark_rule",
+        "separation_rule",
+        "forbidden_template_values",
+        "rdagent_template_paths",
+        "rdagent_rule",
+    ):
+        if key not in universe_benchmark_binding:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"universe_benchmark_binding_semantics must include {key}"
+            )
+    expected_universe_benchmark_binding_values = {
+        "semantic_name": "a_share_rd_agent_universe_benchmark_binding",
+        "market_universe_authority": "qlib.tests.config.CSI300_MARKET",
+        "benchmark_authority": "qlib.tests.config.CSI300_BENCH",
+        "template_market_value": QLIB_ASHARE_TEMPLATE_MARKET,
+        "template_benchmark_value": QLIB_ASHARE_TEMPLATE_BENCHMARK,
+        "template_market_anchor": f"market: &market {QLIB_ASHARE_TEMPLATE_MARKET}",
+        "template_instruments_binding": "instruments: *market",
+        "template_benchmark_anchor": f"benchmark: &benchmark {QLIB_ASHARE_TEMPLATE_BENCHMARK}",
+        "template_backtest_benchmark_binding": "benchmark: *benchmark",
+        "market_universe_rule": "csi300_template_market_selects_instruments_only",
+        "benchmark_rule": "SH000300_template_benchmark_is_portfolio_excess_return_baseline_only",
+        "separation_rule": "market_universe_membership_and_benchmark_return_series_are_not_substitutable",
+        "forbidden_template_values": ["all_a", "all", "SH000300_as_market", "csi300_as_benchmark"],
+        "rdagent_template_paths": list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS),
+        "rdagent_rule": "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing",
+    }
+    for key, expected_value in expected_universe_benchmark_binding_values.items():
+        if universe_benchmark_binding.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"universe_benchmark_binding_semantics must preserve {key}"
+            )
+    if universe_benchmark_binding["template_market_value"] == universe_benchmark_binding["template_benchmark_value"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract universe_benchmark_binding_semantics must not alias market and benchmark"
+        )
+    if universe_benchmark_binding["template_market_value"] in _string_list(
+        universe_benchmark_binding["forbidden_template_values"]
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract universe_benchmark_binding_semantics must not use a forbidden market value"
+        )
+    if universe_benchmark_binding["template_benchmark_value"] in _string_list(
+        universe_benchmark_binding["forbidden_template_values"]
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract universe_benchmark_binding_semantics must not use a forbidden benchmark value"
+        )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -2399,6 +2474,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "portfolio_risk_semantics",
         "feedback_metric_semantics",
         "benchmark_return_semantics",
+        "universe_benchmark_binding_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
