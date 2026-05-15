@@ -32,11 +32,14 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS,
+    QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
     QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
@@ -343,6 +346,9 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_json_loader_boundary_rule": QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
         "rdagent_model_benchmark_fixture_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
         "rdagent_model_benchmark_reference_code_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
+        "rdagent_model_execution_template_boundary_rule": QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
+        "rdagent_model_one_shot_prompt_boundary_rule": QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
+        "rdagent_model_execution_surface_paths": list(QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS),
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1809,6 +1815,8 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
 
     model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
@@ -1833,6 +1841,9 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert "rdagent/components/coder/model_coder/model.py" in workflow
     assert "rdagent/components/coder/model_coder/task_loader.py" in workflow
     assert "rdagent/components/coder/model_coder/prompts.yaml" in workflow
+    assert "rdagent/components/coder/model_coder/model_execute_template_v1.txt" in workflow
+    assert "rdagent/components/coder/model_coder/one_shot/prompt.yaml" in workflow
+    assert "rdagent/components/coder/model_coder/gt_code.py" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_proposal.py" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_semantics.py" in workflow
 
@@ -1951,6 +1962,44 @@ def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_sig
     assert "torch.full((batch_size, num_timesteps, num_features), init_val)" in evaluator_source
     assert "model_type" in evaluator_source
     assert "TimeSeries" in evaluator_source
+
+
+def test_rd_agent_model_execution_templates_use_qlib_ashare_prediction_signal_semantics() -> None:
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+    assert QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE in boundary
+
+    execution_template = (REPO_ROOT / "rdagent/components/coder/model_coder/model_execute_template_v1.txt").read_text()
+    one_shot_prompt = (REPO_ROOT / "rdagent/components/coder/model_coder/one_shot/prompt.yaml").read_text()
+    reference_source = (REPO_ROOT / "rdagent/components/coder/model_coder/gt_code.py").read_text()
+    loader_source = (REPO_ROOT / "rdagent/components/loader/task_loader.py").read_text()
+    active_surface = "\n".join([execution_template, one_shot_prompt, reference_source, loader_source])
+
+    for relative_path in QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS:
+        assert (REPO_ROOT / relative_path).exists()
+
+    for forbidden in (
+        'MODEL_TYPE == "Graph"',
+        "torch_geometric",
+        "edge_index",
+        "node_feature",
+        "Anti-Symmetric Deep Graph Network",
+        "graph learning field",
+        "message passing",
+        "adjacency",
+    ):
+        assert forbidden not in active_surface
+
+    assert "Unsupported Qlib A-share model type" in execution_template
+    assert "out = m(data)" in execution_template
+    assert "Qlib A-share prediction-score model" in one_shot_prompt
+    assert "Tabular: feature tensor [batch_size, num_features]" in one_shot_prompt
+    assert "TimeSeries: feature tensor [batch_size, num_timesteps, num_features]" in one_shot_prompt
+    assert "`score` column in `pred.pkl` indexed by `datetime` and `instrument`" in one_shot_prompt
+    assert "QlibAshareTemporalScoreModel" in reference_source
+    assert "model_cls = QlibAshareTemporalScoreModel" in reference_source
+    assert "num_timesteps" in reference_source
+    assert "score_head" in reference_source
 
 
 def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> None:
@@ -3014,6 +3063,36 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_reference
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_execution_template_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_execution_template_boundary_rule"
+    ] = "rdagent_qlib_model_execution_templates_may_execute_graph_inputs"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_one_shot_prompt_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_one_shot_prompt_boundary_rule"
+    ] = "rdagent_qlib_model_one_shot_prompts_may_request_torch_geometric_graph_models"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_execution_surface_paths_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_model_execution_surface_paths"] = [
+        "rdagent/components/coder/model_coder/prompts.yaml",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3728,6 +3807,18 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "prediction-signal benchmark reference code boundary: "
         f"{QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal execution template boundary: "
+        f"{QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal one-shot prompt boundary: "
+        f"{QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal execution surfaces: "
+        + ", ".join(str(path) for path in QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS)
     ) in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text
