@@ -139,6 +139,7 @@ def format_rd_agent_ashare_semantic_context(
     trade_indicator = _mapping(prompt_payload.get("trade_indicator_semantics"))
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
+    portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -227,6 +228,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- strategy-order prediction window: {strategy_order.get('prediction_window_rule')}",
             f"- strategy-order dropout rule: {strategy_order.get('dropout_rule')}",
             f"- strategy-order order return rule: {strategy_order.get('target_order_return_rule')}",
+            f"- portfolio-risk authority: pyqlib ({portfolio_risk.get('risk_analysis_authority')})",
+            "- portfolio-risk metrics: "
+            + ", ".join(str(item) for item in portfolio_risk.get("risk_metric_fields", [])),
+            "- portfolio-risk consumed paths: "
+            + ", ".join(str(item) for item in portfolio_risk.get("rdagent_consumed_metric_paths", [])),
+            f"- portfolio-risk annualization scaler: {portfolio_risk.get('day_annualization_scaler')}",
+            f"- portfolio-risk max drawdown rule: {portfolio_risk.get('max_drawdown_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -375,6 +383,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_trade_execution_indicators_or_quality_metrics",
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_strategy_signal_to_order_generation",
+        "redefine_portfolio_risk_analysis_metrics",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -425,6 +434,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "portfolio_risk_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -460,6 +470,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "portfolio_risk_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1157,6 +1168,76 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if strategy_order.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"strategy_order_semantics must preserve {key}"
+            )
+    portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
+    for key in (
+        "semantic_name",
+        "record_authority",
+        "risk_analysis_authority",
+        "freq_authority",
+        "backtest_source_rule",
+        "report_artifact_rule",
+        "risk_artifact_rule",
+        "recorder_metric_rule",
+        "default_frequency_rule",
+        "required_report_columns",
+        "report_type_fields",
+        "excess_without_cost_rule",
+        "excess_with_cost_rule",
+        "risk_metric_fields",
+        "default_accumulation_mode",
+        "supported_accumulation_modes",
+        "sum_mode_rule",
+        "day_annualization_scaler",
+        "annualization_scaler_rule",
+        "mean_rule",
+        "std_rule",
+        "annualized_return_rule",
+        "information_ratio_rule",
+        "max_drawdown_rule",
+        "rdagent_consumed_metric_paths",
+        "rdagent_rule",
+    ):
+        if key not in portfolio_risk:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload portfolio_risk_semantics must include {key}"
+            )
+    expected_portfolio_risk_values = {
+        "semantic_name": "a_share_portfolio_risk_analysis",
+        "record_authority": "qlib.workflow.record_temp.PortAnaRecord",
+        "risk_analysis_authority": "qlib.contrib.evaluate.risk_analysis",
+        "freq_authority": "qlib.utils.resam.Freq.parse",
+        "backtest_source_rule": "PortAnaRecord_runs_normal_backtest_and_reads_portfolio_metric_dict_by_freq",
+        "report_artifact_rule": "report_normal_dataframe_saved_as_portfolio_analysis_report_normal_{freq}_pkl",
+        "risk_artifact_rule": "risk_analysis_dataframe_saved_as_portfolio_analysis_port_analysis_{freq}_pkl",
+        "recorder_metric_rule": "risk_metrics_are_logged_as_{freq}.{report_type}.{risk_metric}",
+        "default_frequency_rule": "missing_risk_analysis_freq_uses_first_executor_portfolio_metric_frequency",
+        "required_report_columns": ["return", "bench", "cost", "turnover"],
+        "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
+        "excess_without_cost_rule": "report_return_minus_benchmark",
+        "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
+        "risk_metric_fields": ["mean", "std", "annualized_return", "information_ratio", "max_drawdown"],
+        "default_accumulation_mode": "sum",
+        "supported_accumulation_modes": ["sum", "product"],
+        "sum_mode_rule": "qlib_sum_mode_uses_arithmetic_cumulative_return_not_geometric_compounding",
+        "day_annualization_scaler": 238,
+        "annualization_scaler_rule": "risk_analysis_parses_freq_when_N_is_absent_and_N_overrides_freq_when_present",
+        "mean_rule": "sum_mode_mean_equals_return_series_mean",
+        "std_rule": "sum_mode_std_uses_sample_standard_deviation_ddof_one",
+        "annualized_return_rule": "sum_mode_annualized_return_equals_mean_times_annualization_scaler",
+        "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
+        "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
+        "rdagent_consumed_metric_paths": [
+            "IC",
+            "1day.excess_return_without_cost.annualized_return",
+            "1day.excess_return_without_cost.max_drawdown",
+        ],
+        "rdagent_rule": "describe_only_do_not_redefine_portfolio_risk_analysis_metrics",
+    }
+    for key, expected_value in expected_portfolio_risk_values.items():
+        if portfolio_risk.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"portfolio_risk_semantics must preserve {key}"
             )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
@@ -1908,6 +1989,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "portfolio_risk_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
