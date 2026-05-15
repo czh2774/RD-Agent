@@ -93,6 +93,7 @@ def _valid_contract() -> dict[str, Any]:
                 "market_semantics.settlement_rule",
                 "market_semantics.limit_threshold",
                 "market_semantics.authoritative_limit_fields",
+                "price_limit_semantics",
                 "settlement_semantics",
             ],
             "rdagent_prompt_forbidden_fields": [
@@ -134,6 +135,23 @@ def _valid_contract() -> dict[str, Any]:
                 "settlement_rule": "t_plus_1_stock",
                 "limit_threshold": "joinquant_ashare",
                 "authoritative_limit_fields": ["$up_limit", "$down_limit"],
+            },
+            "price_limit_semantics": {
+                "limit_threshold": "joinquant_ashare",
+                "price_limit_mode": "strict",
+                "authoritative_limit_fields": ["$up_limit", "$down_limit"],
+                "field_authority": "provider_up_down_limit_fields",
+                "missing_authoritative_fields": (
+                    "fail_closed_in_strict_mode_else_qlib_board_fallback_for_legacy_datasets"
+                ),
+                "board_fallback_policy": "runtime_compatibility_only_when_authoritative_fields_are_absent",
+                "board_limit_thresholds": {
+                    "main_board": 0.095,
+                    "star_chinext": 0.195,
+                    "bse": 0.295,
+                    "chinext_registration_start_date": "2020-08-24",
+                },
+                "rdagent_rule": "describe_only_do_not_redefine_price_limit_thresholds_or_fields",
             },
             "settlement_semantics": {
                 "settlement_rule": "t_plus_1_stock",
@@ -183,6 +201,12 @@ def _valid_contract() -> dict[str, Any]:
             ],
             "price_limit_modes": ["auto", "strict", "board_fallback"],
             "authoritative_limit_fields": ["$up_limit", "$down_limit"],
+            "board_threshold_fields": {
+                "main_board_threshold": 0.095,
+                "star_chinext_threshold": 0.195,
+                "bse_threshold": 0.295,
+                "chinext_registration_start_date": "2020-08-24",
+            },
             "cost_model": {
                 "open_cost": 0.0003,
                 "close_cost": 0.0013,
@@ -207,6 +231,8 @@ def _valid_contract() -> dict[str, Any]:
             "settlement_rule",
             "same_day_sell_policy",
             "price_limit_modes",
+            "authoritative_limit_fields",
+            "board_threshold_fields",
             "cost_model",
         ],
     }
@@ -252,11 +278,18 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "settlement_rule",
         "same_day_sell_policy",
         "price_limit_modes",
+        "authoritative_limit_fields",
+        "board_threshold_fields",
         "cost_model",
     ]
     assert context["failure_contract"]["runtime_projection_drift"] == "fail_closed"
     assert "runtime_surfaces.backtest_kwargs" in context["prompt_projection"]["rdagent_prompt_forbidden_fields"]
     assert context["prompt_projection_payload"]["market_semantics"]["trade_unit"] == 100
+    assert context["prompt_projection_payload"]["price_limit_semantics"]["price_limit_mode"] == "strict"
+    assert (
+        context["prompt_projection_payload"]["price_limit_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_price_limit_thresholds_or_fields"
+    )
     assert context["prompt_projection_payload"]["settlement_semantics"]["settlement_rule"] == "t_plus_1_stock"
     assert (
         context["prompt_projection_payload"]["settlement_semantics"]["same_day_sell_policy"]
@@ -349,6 +382,22 @@ def test_malformed_qlib_prompt_projection_without_t1_settlement_fails_closed() -
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_price_limit_semantics_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["price_limit_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_limit_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_price_limit_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["price_limit_semantics"]["rdagent_rule"] = "rdagent_may_override_price_limits"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_limit_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -376,11 +425,14 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "qlib_source_component: qlib.backtest.ashare_semantics" in text
     assert "prompt_projection_schema_version: qlib_ashare_prompt_projection.v1" in text
     assert "prompt_projection_kind: research_prompt_context_only" in text
+    assert "price-limit authority: pyqlib (provider_up_down_limit_fields)" in text
+    assert "price-limit mode: strict" in text
+    assert "price-limit fallback: runtime_compatibility_only_when_authoritative_fields_are_absent" in text
     assert "settlement authority: pyqlib (t_plus_1_stock)" in text
     assert "same-day sell policy: shares_bought_today_are_unsellable_until_day_commit" in text
     assert (
         "RD-Agent must not redefine: trade_unit, position_type, settlement_rule, same_day_sell_policy, "
-        "price_limit_modes, cost_model"
+        "price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text

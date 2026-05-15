@@ -129,6 +129,7 @@ def format_rd_agent_ashare_semantic_context(
     boundary = _mapping(payload.get("relationship_boundary"))
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
+    price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
@@ -149,6 +150,9 @@ def format_rd_agent_ashare_semantic_context(
             f"- market: {market.get('market')} / region={market.get('region')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
+            f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
+            f"- price-limit mode: {price_limit.get('price_limit_mode')}",
+            f"- price-limit fallback: {price_limit.get('board_fallback_policy')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
             "- RD-Agent must not redefine: " + ", ".join(str(item) for item in boundary["rdagent_must_not_redefine"]),
@@ -275,12 +279,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "pyqlib A-share contract projection_contract must project the semantic fingerprint"
         )
     for key in (
+        "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
     ):
         if key not in prompt_projection_fields:
             raise QlibAshareSemanticContractError(
-                f"pyqlib A-share contract projection_contract must project A-share settlement field {key}"
+                f"pyqlib A-share contract projection_contract must project A-share prompt field {key}"
             )
     for key in (
         "runtime_surfaces.policy_defaults",
@@ -344,6 +349,48 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload market_semantics must include {key}"
             )
+    price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
+    for key in (
+        "limit_threshold",
+        "price_limit_mode",
+        "authoritative_limit_fields",
+        "field_authority",
+        "missing_authoritative_fields",
+        "board_fallback_policy",
+        "board_limit_thresholds",
+        "rdagent_rule",
+    ):
+        if key not in price_limit:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload price_limit_semantics must include {key}"
+            )
+    if price_limit.get("limit_threshold") != prompt_market.get("limit_threshold"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must match market limit"
+        )
+    if price_limit.get("authoritative_limit_fields") != prompt_market.get("authoritative_limit_fields"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must match market fields"
+        )
+    if price_limit.get("price_limit_mode") not in {"strict", "auto"}:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must declare strict or auto mode"
+        )
+    if price_limit.get("rdagent_rule") != "describe_only_do_not_redefine_price_limit_thresholds_or_fields":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload price_limit_semantics must forbid RD-Agent redefinition"
+        )
+    board_thresholds = _mapping(price_limit.get("board_limit_thresholds"))
+    for key in (
+        "main_board",
+        "star_chinext",
+        "bse",
+        "chinext_registration_start_date",
+    ):
+        if key not in board_thresholds:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload board_limit_thresholds must include {key}"
+            )
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     for key in (
         "settlement_rule",
@@ -379,6 +426,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "limit_threshold",
         "price_limit_modes",
         "authoritative_limit_fields",
+        "board_threshold_fields",
         "cost_model",
     ):
         if key not in market:
@@ -441,7 +489,16 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     must_not_redefine = contract.get("rdagent_must_not_redefine")
     if not isinstance(must_not_redefine, list):
         raise QlibAshareSemanticContractError("pyqlib A-share contract must list rdagent_must_not_redefine")
-    for key in ("trade_unit", "position_type", "settlement_rule", "same_day_sell_policy", "cost_model"):
+    for key in (
+        "trade_unit",
+        "position_type",
+        "settlement_rule",
+        "same_day_sell_policy",
+        "price_limit_modes",
+        "authoritative_limit_fields",
+        "board_threshold_fields",
+        "cost_model",
+    ):
         if key not in must_not_redefine:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must forbid RD-Agent redefining {key}")
 
