@@ -265,7 +265,7 @@ model_feedback_generation:
     Code Implementation: {{ sota_code }}
     Result: {{ sota_result }}
     {% else %}
-    # This is the first round. No previous information available. As long as the performance is not too negative (eg.ICIR is greater than 0), treat it as successful. Do not set the threshold too high.  
+    # This is the first round. No previous SOTA result is available. Do not treat positive ICIR or any low-threshold first-round heuristic as a success proxy; use the exact Qlib feedback metric paths below and make success/replacement decisions from the Qlib benchmark-relative feedback primary metric.
     {% endif %} 
     
     # Current Round Information:

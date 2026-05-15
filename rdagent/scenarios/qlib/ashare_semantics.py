@@ -156,6 +156,16 @@ QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS = QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATH
 QLIB_ASHARE_PROMPT_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC = QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS[0]
+QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE = (
+    "first_round_without_sota_must_not_treat_positive_icir_or_not_too_negative_performance_as_success_proxy"
+)
+QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES = (
+    "not too negative",
+    "performance is not too negative",
+    "ICIR is greater than 0",
+    "Do not set the threshold too high",
+)
+QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE = "model_feedback_prompts_must_use_feedback_primary_metric_for_success_decisions_and_treat_icir_as_signal_quality_context"
 QLIB_ASHARE_BANDIT_METRIC_PATHS = (
     *QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
     *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
@@ -536,12 +546,16 @@ def format_rd_agent_ashare_semantic_context(
             f"- excess-return prompt rule: {excess_return.get('rdagent_prompt_rule')}",
             f"- feedback-metric authority: pyqlib ({feedback_metric.get('portfolio_metric_authority')})",
             f"- feedback-metric primary: {feedback_metric.get('feedback_primary_metric')}",
+            f"- feedback-metric first-round decision rule: {feedback_metric.get('first_round_decision_rule')}",
             "- feedback-metric paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
             f"- feedback-metric utility rule: {feedback_metric.get('derived_bandit_utility_rule')}",
             "- feedback-metric forbidden aliases: "
             + ", ".join(str(item) for item in feedback_metric.get("forbidden_metric_aliases", [])),
+            "- feedback-metric forbidden first-round success proxies: "
+            + ", ".join(str(item) for item in feedback_metric.get("forbidden_first_round_success_proxies", [])),
+            f"- feedback-metric model prompt boundary: {feedback_metric.get('rdagent_model_feedback_prompt_boundary_rule')}",
             f"- benchmark-return authority: pyqlib ({benchmark_return.get('benchmark_calculation_authority')})",
             f"- benchmark-return default: {benchmark_return.get('default_benchmark')}",
             f"- benchmark-return field: {benchmark_return.get('benchmark_field_expression')}",
@@ -1920,10 +1934,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_paths",
         "feedback_primary_metric",
         "sota_fallback_rule",
+        "first_round_decision_rule",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
         "forbidden_metric_aliases",
+        "forbidden_first_round_success_proxies",
         "prompt_metric_wording_rule",
+        "rdagent_model_feedback_prompt_boundary_rule",
         "rdagent_source_paths",
         "rdagent_rule",
     ):
@@ -1941,10 +1958,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_paths": list(QLIB_ASHARE_BANDIT_METRIC_PATHS),
         "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
         "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
+        "first_round_decision_rule": QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],
+        "forbidden_first_round_success_proxies": list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES),
         "prompt_metric_wording_rule": "describe_exact_qlib_metric_paths_not_generic_return_sharpe_or_and_so_on",
+        "rdagent_model_feedback_prompt_boundary_rule": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE,
         "rdagent_source_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS),
         "rdagent_rule": "consume_exact_qlib_metric_paths_and_label_derived_bandit_utility_as_non_qlib_metric",
     }
