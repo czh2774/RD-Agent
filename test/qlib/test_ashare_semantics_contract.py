@@ -30,6 +30,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
     QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
@@ -341,6 +342,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_loader_boundary_rule": QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE,
         "rdagent_model_json_loader_boundary_rule": QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
         "rdagent_model_benchmark_fixture_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
+        "rdagent_model_benchmark_reference_code_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1806,6 +1808,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
 
     model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
@@ -1840,6 +1843,7 @@ def test_rd_agent_model_json_loader_attaches_qlib_prediction_signal_boundary_to_
     boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
     assert QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
 
     loader_source = (REPO_ROOT / "rdagent/components/loader/task_loader.py").read_text()
     assert "model_output_boundary: str | None = None" in loader_source
@@ -1918,6 +1922,35 @@ def test_rd_agent_model_benchmark_fixture_uses_qlib_ashare_prediction_signal_sem
     benchmark_source = (REPO_ROOT / "rdagent/app/benchmark/model/eval.py").read_text()
     assert "Legacy gt-code fixture key" in benchmark_source
     assert "FIXME: other models does not work well" not in benchmark_source
+
+
+def test_rd_agent_model_benchmark_reference_code_uses_qlib_ashare_prediction_signal_semantics() -> None:
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+    assert QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE in boundary
+
+    gt_code_path = REPO_ROOT / "rdagent/components/coder/model_coder/benchmark/gt_code"
+    assert sorted(path.name for path in gt_code_path.glob("*.py")) == ["A-DGN.py"]
+
+    reference_source = (gt_code_path / "A-DGN.py").read_text()
+    evaluator_source = (REPO_ROOT / "rdagent/components/coder/model_coder/benchmark/eval.py").read_text()
+    active_source = reference_source + "\n" + evaluator_source
+    for forbidden in (
+        "torch_geometric",
+        "edge_index",
+        "node_feature",
+        "message passing",
+        "molecular",
+        "adjacency",
+    ):
+        assert forbidden not in active_source
+    assert "QlibAshareTemporalScoreModel" in reference_source
+    assert "model_cls = QlibAshareTemporalScoreModel" in reference_source
+    assert "num_timesteps" in reference_source
+    assert "num_features" in reference_source
+    assert "score_head" in reference_source
+    assert "torch.full((batch_size, num_timesteps, num_features), init_val)" in evaluator_source
+    assert "model_type" in evaluator_source
+    assert "TimeSeries" in evaluator_source
 
 
 def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> None:
@@ -2971,6 +3004,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_fixture_b
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_benchmark_reference_code_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_benchmark_reference_code_boundary_rule"
+    ] = "rdagent_qlib_model_benchmark_reference_code_may_require_torch_geometric_graph_inputs"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3681,6 +3724,10 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     ) in text
     assert (
         "prediction-signal benchmark fixture boundary: " f"{QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal benchmark reference code boundary: "
+        f"{QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE}"
     ) in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text
