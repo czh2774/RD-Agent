@@ -8,7 +8,6 @@ from pydantic import Field, model_validator
 
 from rdagent.core.conf import ExtendedBaseSettings
 
-
 ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
 SUPPORTED_REASONING_EFFORTS: tuple[ReasoningEffort, ...] = (
     "minimal",

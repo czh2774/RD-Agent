@@ -8,8 +8,8 @@ import pandas as pd
 from rdagent.components.coder.model_coder.conf import MODEL_COSTEER_SETTINGS
 from rdagent.core.experiment import FBWorkspace
 from rdagent.log import rdagent_logger as logger
-from rdagent.utils.qlib import get_default_qlib_provider_uri
 from rdagent.utils.env import QlibCondaConf, QlibCondaEnv, QTDockerEnv
+from rdagent.utils.qlib import get_default_qlib_provider_uri
 
 
 class QlibFBWorkspace(FBWorkspace):

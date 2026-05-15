@@ -1,21 +1,46 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Type, Union, cast
 
 from pydantic import BaseModel
 
 from rdagent.log import LogColors
 from rdagent.log import rdagent_logger as logger
-from rdagent.oai.backend.deprec import DeprecBackend
+from rdagent.oai.backend.base import APIBackend
 from rdagent.oai.llm_conf import (
     LLM_SETTINGS,
-    ReasoningEffort,
     SUPPORTED_REASONING_EFFORTS,
+    ReasoningEffort,
 )
 
+if TYPE_CHECKING:
 
-class OpenAIResponsesAPIBackend(DeprecBackend):
+    class _OpenAIResponsesAPIBackendBase(APIBackend):
+        chat_client: Any
+        chat_stream: bool
+
+        def supports_response_schema(self) -> bool: ...
+
+        def _calculate_token_from_messages(self, messages: list[dict[str, Any]]) -> int: ...
+
+        def _create_embedding_inner_function(self, input_content_list: list[str]) -> list[list[float]]: ...
+
+        def _create_chat_completion_inner_function(
+            self,
+            messages: list[dict[str, Any]],
+            response_format: Optional[Union[dict, Type[BaseModel]]] = None,
+            *args: Any,
+            **kwargs: Any,
+        ) -> tuple[str, str | None]: ...
+
+else:
+    from rdagent.oai.backend.deprec import (
+        DeprecBackend as _OpenAIResponsesAPIBackendBase,
+    )
+
+
+class OpenAIResponsesAPIBackend(_OpenAIResponsesAPIBackendBase):
     """
     Primary OpenAI SDK backend for Codex-compatible /responses providers.
     """
@@ -44,7 +69,7 @@ class OpenAIResponsesAPIBackend(DeprecBackend):
 
     @staticmethod
     def _normalize_strict_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
-        normalized = json.loads(json.dumps(schema))
+        normalized = cast(dict[str, Any], json.loads(json.dumps(schema)))
 
         def visit(node: Any) -> None:
             if isinstance(node, dict):
@@ -140,10 +165,10 @@ class OpenAIResponsesAPIBackend(DeprecBackend):
     def _get_complete_kwargs(
         self,
     ) -> tuple[str, float | None, int | None, ReasoningEffort | None]:
-        model = LLM_SETTINGS.chat_model
-        temperature = LLM_SETTINGS.chat_temperature
-        max_tokens = LLM_SETTINGS.chat_max_tokens
-        reasoning_effort = LLM_SETTINGS.reasoning_effort
+        model: str = LLM_SETTINGS.chat_model
+        temperature: float | None = LLM_SETTINGS.chat_temperature
+        max_tokens: int | None = LLM_SETTINGS.chat_max_tokens
+        reasoning_effort: ReasoningEffort | None = LLM_SETTINGS.reasoning_effort
 
         if LLM_SETTINGS.chat_model_map:
             for tag, mapping in LLM_SETTINGS.chat_model_map.items():
@@ -168,7 +193,7 @@ class OpenAIResponsesAPIBackend(DeprecBackend):
     def supports_response_schema(self) -> bool:
         return True
 
-    def _create_chat_completion_inner_function(  # type: ignore[no-untyped-def]
+    def _create_chat_completion_inner_function(
         self,
         messages: list[dict[str, Any]],
         response_format: Optional[Union[dict, Type[BaseModel]]] = None,
@@ -176,15 +201,8 @@ class OpenAIResponsesAPIBackend(DeprecBackend):
         **kwargs: Any,
     ) -> tuple[str, str | None]:
         if self.chat_stream:
-            logger.warning(
-                "OpenAIResponsesAPIBackend stream fallback is using chat.completions compatibility mode."
-            )
-            return super()._create_chat_completion_inner_function(
-                messages=messages,
-                response_format=response_format,
-                *args,
-                **kwargs,
-            )
+            logger.warning("OpenAIResponsesAPIBackend stream fallback is using chat.completions compatibility mode.")
+            return super()._create_chat_completion_inner_function(messages, response_format, *args, **kwargs)
 
         if LLM_SETTINGS.log_llm_chat_content:
             logger.info(self._build_log_messages(messages), tag="llm_messages")
@@ -221,9 +239,10 @@ class OpenAIResponsesAPIBackend(DeprecBackend):
                 tag="llm_messages",
             )
             logger.info(f"{LogColors.CYAN}Response:{content}{LogColors.END}", tag="llm_messages")
-            usage = getattr(response, "usage", None)
-            if hasattr(usage, "model_dump"):
-                usage = usage.model_dump()
+            usage_obj = getattr(response, "usage", None)
+            usage: Any = None
+            if usage_obj is not None:
+                usage = usage_obj.model_dump() if hasattr(usage_obj, "model_dump") else usage_obj
             logger.info(
                 json.dumps(
                     {

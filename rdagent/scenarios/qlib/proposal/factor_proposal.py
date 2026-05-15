@@ -50,9 +50,7 @@ def validate_qlib_factor_hypothesis_response(payload: dict[str, Any]) -> dict[st
             "Qlib factor hypotheses must include a concrete market-data factor idea rather than generic screening language."
         )
     if not any(pattern.search(hypothesis) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS):
-        raise ValueError(
-            "Qlib factor hypotheses must include concrete market-data alpha directions."
-        )
+        raise ValueError("Qlib factor hypotheses must include concrete market-data alpha directions.")
     return normalized
 
 

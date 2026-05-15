@@ -42,6 +42,13 @@ class LiteLLMSettings(LLMSettings):
 
 LITELLM_SETTINGS = LiteLLMSettings()
 ACC_COST = 0.0
+LiteLLMReasoningEffort = Literal["low", "medium", "high"]
+
+
+def _coerce_litellm_reasoning_effort(value: str | None) -> LiteLLMReasoningEffort | None:
+    if value in ("low", "medium", "high"):
+        return cast(LiteLLMReasoningEffort, value)
+    return None
 
 
 class LiteLLMAPIBackend(APIBackend):
@@ -89,7 +96,7 @@ class LiteLLMAPIBackend(APIBackend):
         model: str
         temperature: float
         max_tokens: int | None
-        reasoning_effort: Literal["low", "medium", "high"] | None
+        reasoning_effort: LiteLLMReasoningEffort | None
 
     def get_complete_kwargs(self) -> CompleteKwargs:
         """
@@ -100,7 +107,7 @@ class LiteLLMAPIBackend(APIBackend):
         model = LITELLM_SETTINGS.chat_model
         temperature = LITELLM_SETTINGS.chat_temperature
         max_tokens = LITELLM_SETTINGS.chat_max_tokens
-        reasoning_effort = LITELLM_SETTINGS.reasoning_effort
+        reasoning_effort = _coerce_litellm_reasoning_effort(LITELLM_SETTINGS.reasoning_effort)
 
         if LITELLM_SETTINGS.chat_model_map:
             for t, mc in LITELLM_SETTINGS.chat_model_map.items():
@@ -111,10 +118,7 @@ class LiteLLMAPIBackend(APIBackend):
                     if "max_tokens" in mc:
                         max_tokens = int(mc["max_tokens"])
                     if "reasoning_effort" in mc:
-                        if mc["reasoning_effort"] in ["low", "medium", "high"]:
-                            reasoning_effort = cast(Literal["low", "medium", "high"], mc["reasoning_effort"])
-                        else:
-                            reasoning_effort = None
+                        reasoning_effort = _coerce_litellm_reasoning_effort(mc["reasoning_effort"])
                     break
         return self.CompleteKwargs(
             model=model,

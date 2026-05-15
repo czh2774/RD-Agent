@@ -10,6 +10,7 @@ from rdagent.components.coder.factor_coder.factor import (
 )
 from rdagent.core.experiment import Task
 from rdagent.core.scenario import Scenario
+from rdagent.scenarios.qlib.ashare_semantics import append_ashare_semantic_context
 from rdagent.scenarios.qlib.experiment.utils import get_data_folder_intro
 from rdagent.scenarios.qlib.experiment.workspace import QlibFBWorkspace
 from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
@@ -101,4 +102,4 @@ The simulator user can use to test your factor:
     def get_runtime_environment(self):
         factor_env = get_factor_env()
         stdout = get_runtime_environment_by_env(env=factor_env)
-        return stdout
+        return append_ashare_semantic_context(stdout)
