@@ -214,6 +214,36 @@ def _strategy_order_semantics() -> dict[str, str]:
     }
 
 
+def _signal_ic_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_signal_information_coefficient",
+        "signal_record_authority": "qlib.workflow.record_temp.SignalRecord",
+        "signal_analysis_authority": "qlib.workflow.record_temp.SigAnaRecord",
+        "high_frequency_signal_analysis_authority": "qlib.workflow.record_temp.HFSignalRecord",
+        "ic_calculation_authority": "qlib.contrib.eva.alpha.calc_ic",
+        "prediction_artifact": "pred.pkl",
+        "label_artifact": "label.pkl",
+        "ic_artifact": "ic.pkl",
+        "rank_ic_artifact": "ric.pkl",
+        "prediction_column_rule": "series_prediction_is_converted_to_score_dataframe_else_first_prediction_column_is_used",
+        "label_source_rule": "dataset_prepare_test_label_uses_DataHandlerLP_DK_R_when_supported_else_handler_default",
+        "missing_label_rule": "missing_or_empty_label_skips_signal_analysis_generation",
+        "label_column_rule": "SigAnaRecord_uses_configured_label_col_default_zero",
+        "groupby_level": "datetime",
+        "ic_rule": "IC_is_per_datetime_pearson_correlation_between_pred_and_label",
+        "rank_ic_rule": "Rank_IC_is_per_datetime_spearman_correlation_between_pred_and_label",
+        "dropna_rule": "calc_ic_preserves_nan_by_default_and_drops_nan_only_when_dropna_true",
+        "metric_fields": ["IC", "ICIR", "Rank IC", "Rank ICIR"],
+        "metric_aggregation_rule": "IC_and_Rank_IC_metrics_are_series_means",
+        "icir_rule": "ICIR_is_IC_mean_divided_by_IC_sample_std",
+        "rank_icir_rule": "Rank_ICIR_is_Rank_IC_mean_divided_by_Rank_IC_sample_std",
+        "recorder_metric_rule": "SigAnaRecord_and_HFSignalRecord_log_metrics_with_exact_metric_names",
+        "rdagent_consumed_metric_paths": ["IC", "ICIR", "Rank IC", "Rank ICIR"],
+        "portfolio_boundary_rule": "signal_ic_metrics_are_prediction_label_quality_metrics_not_portfolio_return_metrics",
+        "rdagent_rule": "describe_only_do_not_redefine_signal_ic_or_rank_ic_metrics",
+    }
+
+
 def _portfolio_risk_semantics() -> dict[str, Any]:
     return {
         "semantic_name": "a_share_portfolio_risk_analysis",
@@ -241,7 +271,6 @@ def _portfolio_risk_semantics() -> dict[str, Any]:
         "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
         "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
         "rdagent_consumed_metric_paths": [
-            "IC",
             "1day.excess_return_without_cost.annualized_return",
             "1day.excess_return_without_cost.max_drawdown",
         ],
@@ -294,7 +323,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, portfolio risk analysis, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, signal IC, portfolio risk analysis, benchmark return, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -328,6 +357,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_trade_execution_indicators_or_quality_metrics",
                 "redefine_executor_decision_lifecycle_or_nested_execution_order",
                 "redefine_strategy_signal_to_order_generation",
+                "redefine_signal_ic_or_rank_ic_metrics",
                 "redefine_portfolio_risk_analysis_metrics",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_settlement_or_sellable_position_state",
@@ -364,6 +394,7 @@ def _valid_contract() -> dict[str, Any]:
                 "trade_indicator_semantics",
                 "executor_decision_semantics",
                 "strategy_order_semantics",
+                "signal_ic_semantics",
                 "portfolio_risk_semantics",
                 "benchmark_return_semantics",
                 "rdagent_must_not_redefine",
@@ -403,6 +434,7 @@ def _valid_contract() -> dict[str, Any]:
                 "trade_indicator_semantics",
                 "executor_decision_semantics",
                 "strategy_order_semantics",
+                "signal_ic_semantics",
                 "portfolio_risk_semantics",
                 "benchmark_return_semantics",
                 "suspension_tradability_semantics",
@@ -644,6 +676,7 @@ def _valid_contract() -> dict[str, Any]:
             "trade_indicator_semantics": _trade_indicator_semantics(),
             "executor_decision_semantics": _executor_decision_semantics(),
             "strategy_order_semantics": _strategy_order_semantics(),
+            "signal_ic_semantics": _signal_ic_semantics(),
             "portfolio_risk_semantics": _portfolio_risk_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
             "settlement_semantics": {
@@ -797,6 +830,7 @@ def _valid_contract() -> dict[str, Any]:
             "trade_indicator_semantics",
             "executor_decision_semantics",
             "strategy_order_semantics",
+            "signal_ic_semantics",
             "portfolio_risk_semantics",
             "benchmark_return_semantics",
             "suspension_tradability_semantics",
@@ -872,6 +906,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_trade_execution_indicators_or_quality_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_executor_decision_lifecycle_or_nested_execution_order" in boundary["rdagent_forbidden_actions"]
     assert "redefine_strategy_signal_to_order_generation" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_signal_ic_or_rank_ic_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_portfolio_risk_analysis_metrics" in boundary["rdagent_forbidden_actions"]
     assert "redefine_benchmark_return_series_or_default_benchmark" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
@@ -890,6 +925,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
         "suspension_tradability_semantics",
@@ -967,6 +1003,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["prompt_projection_payload"]["trade_indicator_semantics"] == _trade_indicator_semantics()
     assert context["prompt_projection_payload"]["executor_decision_semantics"] == _executor_decision_semantics()
     assert context["prompt_projection_payload"]["strategy_order_semantics"] == _strategy_order_semantics()
+    assert context["prompt_projection_payload"]["signal_ic_semantics"] == _signal_ic_semantics()
     assert context["prompt_projection_payload"]["portfolio_risk_semantics"] == _portfolio_risk_semantics()
     assert context["prompt_projection_payload"]["benchmark_return_semantics"] == _benchmark_return_semantics()
     assert (
@@ -1761,6 +1798,43 @@ def test_malformed_qlib_prompt_projection_with_mutable_strategy_return_rule_fail
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_signal_ic_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["signal_ic_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="signal_ic_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_signal_ic_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["signal_ic_semantics"]["ic_calculation_authority"] = "rdagent.metrics.calc_ic"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="signal_ic_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_signal_ic_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["signal_ic_semantics"][
+        "ic_rule"
+    ] = "IC_is_prompt_defined_factor_return_correlation"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="signal_ic_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_signal_ic_metric_paths_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["signal_ic_semantics"]["rdagent_consumed_metric_paths"] = [
+        "signal_ic",
+        "rank_ic",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="signal_ic_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_portfolio_risk_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["portfolio_risk_semantics"]
@@ -2091,10 +2165,20 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "combined_last_and_today_scores_prevent_dropping_higher_score_stock_for_lower_score_buy"
     ) in text
     assert "strategy-order order return rule: exchange_returns_sell_orders_before_buy_orders" in text
+    assert "signal-ic authority: pyqlib (qlib.workflow.record_temp.SigAnaRecord)" in text
+    assert "signal-ic calculation: pyqlib (qlib.contrib.eva.alpha.calc_ic)" in text
+    assert "signal-ic metrics: IC, ICIR, Rank IC, Rank ICIR" in text
+    assert "signal-ic groupby: datetime" in text
+    assert "signal-ic IC rule: IC_is_per_datetime_pearson_correlation_between_pred_and_label" in text
+    assert "signal-ic Rank IC rule: Rank_IC_is_per_datetime_spearman_correlation_between_pred_and_label" in text
+    assert (
+        "signal-ic portfolio boundary: "
+        "signal_ic_metrics_are_prediction_label_quality_metrics_not_portfolio_return_metrics"
+    ) in text
     assert "portfolio-risk authority: pyqlib (qlib.contrib.evaluate.risk_analysis)" in text
     assert "portfolio-risk metrics: mean, std, annualized_return, information_ratio, max_drawdown" in text
     assert (
-        "portfolio-risk consumed paths: IC, 1day.excess_return_without_cost.annualized_return, "
+        "portfolio-risk consumed paths: 1day.excess_return_without_cost.annualized_return, "
         "1day.excess_return_without_cost.max_drawdown"
     ) in text
     assert "portfolio-risk annualization scaler: 238" in text
@@ -2196,7 +2280,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, portfolio_risk_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, signal_ic_semantics, portfolio_risk_semantics, benchmark_return_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
