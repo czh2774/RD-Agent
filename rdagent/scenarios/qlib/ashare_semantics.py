@@ -84,6 +84,7 @@ QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE = (
 )
 QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_implementation_prompts_must_treat_model_output_boundary_as_authority_over_generic_model_type_examples"
 QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_evaluator_prompts_must_reject_model_output_boundary_violations_even_when_execution_or_similar_examples_pass"
+QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_formulation_prompts_must_describe_predictions_as_datetime_instrument_scores_and_not_graph_node_outputs"
 QLIB_ASHARE_SUPPORTED_MODEL_TYPES = ("Tabular", "TimeSeries")
 QLIB_ASHARE_FORBIDDEN_MODEL_TYPES = ("Graph", "XGBoost")
 QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS = ("rdagent/components/coder/model_coder/prompts.yaml",)
@@ -254,7 +255,8 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('rdagent_model_task_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_type_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_implementation_prompt_boundary_rule')}; "
-        f"{prediction_signal.get('rdagent_model_evaluator_prompt_boundary_rule')}."
+        f"{prediction_signal.get('rdagent_model_evaluator_prompt_boundary_rule')}; "
+        f"{prediction_signal.get('rdagent_model_formulation_prompt_boundary_rule')}."
     )
 
 
@@ -396,6 +398,8 @@ def format_rd_agent_ashare_semantic_context(
             f"{prediction_signal.get('rdagent_model_implementation_prompt_boundary_rule')}",
             "- prediction-signal evaluator prompt boundary: "
             f"{prediction_signal.get('rdagent_model_evaluator_prompt_boundary_rule')}",
+            "- prediction-signal formulation prompt boundary: "
+            f"{prediction_signal.get('rdagent_model_formulation_prompt_boundary_rule')}",
             "- prediction-signal supported model types: "
             + ", ".join(str(item) for item in prediction_signal.get("rdagent_supported_model_types", [])),
             "- prediction-signal forbidden model types: "
@@ -1513,6 +1517,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_type_boundary_rule",
         "rdagent_model_implementation_prompt_boundary_rule",
         "rdagent_model_evaluator_prompt_boundary_rule",
+        "rdagent_model_formulation_prompt_boundary_rule",
         "rdagent_supported_model_types",
         "rdagent_forbidden_model_types",
         "rdagent_implementation_prompt_paths",
@@ -1549,6 +1554,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
         "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
+        "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
