@@ -8,6 +8,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
     QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
+    QLIB_ASHARE_BANDIT_REWARD_RULE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
 )
@@ -132,11 +133,12 @@ class LinearThompsonTwoArm:
 
 class EnvController:
     def __init__(self, weights: Tuple[float, ...] = None) -> None:
-        self.weights = np.asarray(weights or (0.1, 0.1, 0.05, 0.05, 0.25, 0.15, 0.1, 0.2))
+        if weights is not None:
+            raise QlibAshareBanditMetricError(QLIB_ASHARE_BANDIT_REWARD_RULE)
         self.bandit = LinearThompsonTwoArm(dim=8, prior_var=10.0, noise_var=0.5)
 
     def reward(self, m: Metrics) -> float:
-        return float(np.dot(self.weights, m.as_vector()))
+        return float(m.drawdown_adjusted_return)
 
     def decide(self, m: Metrics) -> str:
         x = m.as_vector()
