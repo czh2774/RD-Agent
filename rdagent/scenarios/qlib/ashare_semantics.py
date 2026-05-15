@@ -47,7 +47,11 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
     "open_cost": 0.0005,
     "close_cost": 0.0015,
 }
-QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
+QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = (
+    "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",
+    "rdagent/scenarios/qlib/prompts.yaml",
+    "rdagent/components/coder/factor_coder/prompts.yaml",
+)
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
 QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE = (
     "alpha158_alpha360_derived_features_must_be_computed_only_from_registered_daily_price_volume_fields"
@@ -418,6 +422,8 @@ def format_rd_agent_ashare_semantic_context(
             "- research data-source fields: "
             + ", ".join(str(item) for item in research_data_source.get("primary_price_volume_fields", [])),
             f"- research data-source derived feature rule: {research_data_source.get('derived_feature_source_rule')}",
+            "- research data-source prompt paths: "
+            + ", ".join(str(item) for item in research_data_source.get("rdagent_prompt_paths", [])),
             "- research data-source forbidden defaults: "
             + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
             f"- research data-source PIT registration: {research_data_source.get('point_in_time_registration_rule')}",

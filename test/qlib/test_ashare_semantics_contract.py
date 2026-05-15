@@ -2916,6 +2916,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_derived_feature_source_ru
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_missing_research_prompt_consumer_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"]["rdagent_prompt_paths"] = [
+        "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml"
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_turnover_input_boundary_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["research_data_source_semantics"][
@@ -3312,6 +3322,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "research data-source frequency: day" in text
     assert f"research data-source fields: {', '.join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)}" in text
     assert f"research data-source derived feature rule: {QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE}" in text
+    assert f"research data-source prompt paths: {', '.join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS)}" in text
     assert (
         "research data-source forbidden defaults: " f"{', '.join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)}"
     ) in text
