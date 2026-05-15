@@ -139,6 +139,7 @@ def format_rd_agent_ashare_semantic_context(
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
+    cash_settlement = _mapping(prompt_payload.get("cash_settlement_semantics"))
     liquidity_capacity = _mapping(prompt_payload.get("liquidity_capacity_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
@@ -213,6 +214,11 @@ def format_rd_agent_ashare_semantic_context(
             f"- cash constraint authority: pyqlib ({cash_constraint.get('runtime_authority')})",
             f"- cash state: {cash_constraint.get('cash_state_field')}",
             f"- cash buy rule: {cash_constraint.get('buy_cash_rule')}",
+            f"- cash-settlement authority: pyqlib ({cash_settlement.get('settlement_authority')})",
+            f"- cash-settlement delayed mode: {cash_settlement.get('delayed_cash_mode')}",
+            f"- cash-settlement sell proceeds rule: {cash_settlement.get('sell_proceeds_rule')}",
+            f"- cash-settlement available cash rule: {cash_settlement.get('available_cash_rule')}",
+            f"- cash-settlement commit rule: {cash_settlement.get('commit_rule')}",
             f"- shorting policy: {cash_constraint.get('shorting_policy')}",
             f"- liquidity capacity authority: pyqlib ({liquidity_capacity.get('runtime_authority')})",
             f"- liquidity capacity parameter: {liquidity_capacity.get('capacity_parameter')}",
@@ -306,6 +312,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_price_limit_thresholds_or_authoritative_fields",
         "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_settlement_or_sellable_position_state",
+        "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
         "redefine_liquidity_or_volume_capacity_policy",
         "redefine_cost_model_or_exchange_kwargs",
@@ -369,6 +376,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "market_semantics.data_frequency",
         "market_semantics.settlement_rule",
         "settlement_semantics",
+        "cash_settlement_semantics",
         "cash_constraint_semantics",
         "liquidity_capacity_semantics",
         "order_unit_semantics",
@@ -1080,6 +1088,48 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must forbid RD-Agent cash redefinition"
         )
+    cash_settlement = _mapping(prompt_payload.get("cash_settlement_semantics"))
+    for key in (
+        "semantic_name",
+        "settlement_authority",
+        "settle_start_authority",
+        "settle_commit_authority",
+        "available_cash_authority",
+        "delayed_cash_state_field",
+        "delayed_cash_mode",
+        "no_delay_cash_mode",
+        "sell_proceeds_rule",
+        "default_sell_proceeds_rule",
+        "available_cash_rule",
+        "account_value_rule",
+        "commit_rule",
+        "rdagent_rule",
+    ):
+        if key not in cash_settlement:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload cash_settlement_semantics must include {key}"
+            )
+    expected_cash_settlement_values = {
+        "semantic_name": "a_share_sell_proceeds_cash_settlement",
+        "settlement_authority": "qlib.backtest.position.Position",
+        "settle_start_authority": "qlib.backtest.position.Position.settle_start",
+        "settle_commit_authority": "qlib.backtest.position.Position.settle_commit",
+        "available_cash_authority": "qlib.backtest.position.Position.get_cash",
+        "delayed_cash_state_field": "cash_delay",
+        "delayed_cash_mode": "Position.ST_CASH",
+        "no_delay_cash_mode": "Position.ST_NO",
+        "sell_proceeds_rule": "sell_proceeds_enter_cash_delay_when_settle_type_is_cash",
+        "default_sell_proceeds_rule": "sell_proceeds_enter_cash_immediately_when_settle_type_is_none",
+        "available_cash_rule": "get_cash_excludes_cash_delay_unless_include_settle_is_true",
+        "account_value_rule": "calculate_value_includes_cash_delay",
+        "commit_rule": "settle_commit_moves_cash_delay_into_cash_and_clears_delay_state",
+        "rdagent_rule": "describe_only_do_not_redefine_cash_settlement_or_sell_proceeds_availability",
+    }
+    for key, expected_value in expected_cash_settlement_values.items():
+        if cash_settlement.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"cash_settlement_semantics must preserve {key}"
+            )
     liquidity_capacity = _mapping(prompt_payload.get("liquidity_capacity_semantics"))
     for key in (
         "semantic_name",
@@ -1285,6 +1335,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_adjustment_semantics",
         "price_limit_semantics",
         "settlement_semantics",
+        "cash_settlement_semantics",
         "cash_constraint_semantics",
         "liquidity_capacity_semantics",
         "price_limit_modes",
