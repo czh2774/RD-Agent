@@ -51,13 +51,21 @@ port_analysis_config: &port_analysis_config
         start_time: {{ test_start | default("2017-01-01", true) }}
         end_time: {{ test_end | default("null", true) }}
         account: 100000000
+        pos_type: AsharePosition
         benchmark: *benchmark
         exchange_kwargs:
-            limit_threshold: 0.095
+            limit_threshold: joinquant_ashare
+            ashare_price_limit_mode: strict
+            ashare_limit_options:
+                open_cost: 0.0003
+                close_commission: 0.0003
+                close_tax: 0.001
+                min_cost: 5.0
+            trade_unit: 100
             deal_price: close
-            open_cost: 0.0005
-            close_cost: 0.0015
-            min_cost: 5
+            open_cost: 0.0003
+            close_cost: 0.0013
+            min_cost: 5.0
 
 task:
     model:

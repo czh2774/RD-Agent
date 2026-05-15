@@ -22,6 +22,31 @@ QLIB_ASHARE_LABEL_TEMPLATE_PATHS = (
 QLIB_ASHARE_TEMPLATE_MARKET = "csi300"
 QLIB_ASHARE_TEMPLATE_BENCHMARK = "SH000300"
 QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS = QLIB_ASHARE_LABEL_TEMPLATE_PATHS
+QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS = QLIB_ASHARE_LABEL_TEMPLATE_PATHS
+QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS = {
+    "limit_threshold": "joinquant_ashare",
+    "ashare_price_limit_mode": "strict",
+    "ashare_limit_options": {
+        "open_cost": 0.0003,
+        "close_commission": 0.0003,
+        "close_tax": 0.001,
+        "min_cost": 5.0,
+    },
+    "trade_unit": 100,
+    "deal_price": "close",
+    "open_cost": 0.0003,
+    "close_cost": 0.0013,
+    "min_cost": 5.0,
+}
+QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS = {
+    "pos_type": "AsharePosition",
+    "exchange_kwargs": QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
+}
+QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
+    "limit_threshold": 0.095,
+    "open_cost": 0.0005,
+    "close_cost": 0.0015,
+}
 QLIB_ASHARE_LABEL_PROMPT_PATHS = ("rdagent/scenarios/qlib/experiment/prompts.yaml",)
 QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
@@ -166,6 +191,7 @@ def build_rd_agent_ashare_runtime_handoff(
             "exchange_kwargs": deepcopy(runtime_surfaces["exchange_kwargs"]),
             "backtest_kwargs": deepcopy(runtime_surfaces["backtest_kwargs"]),
         },
+        "template_runtime_binding": deepcopy(handoff_contract["template_runtime_binding"]),
     }
 
 
@@ -198,6 +224,7 @@ def format_rd_agent_ashare_semantic_context(
     feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
+    runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -340,6 +367,9 @@ def format_rd_agent_ashare_semantic_context(
             f"- universe-benchmark benchmark rule: {universe_benchmark_binding.get('benchmark_rule')}",
             f"- universe-benchmark separation rule: {universe_benchmark_binding.get('separation_rule')}",
             f"- universe-benchmark template rule: {universe_benchmark_binding.get('rdagent_rule')}",
+            f"- runtime-handoff template binding: {runtime_template_binding.get('binding_kind')}",
+            f"- runtime-handoff template rule: {runtime_template_binding.get('runtime_rule')}",
+            f"- runtime-handoff prompt boundary: {runtime_template_binding.get('prompt_boundary_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -495,6 +525,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
+        "redefine_runtime_handoff_or_template_execution_kwargs",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -552,6 +583,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "runtime_handoff_template_binding_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -594,6 +626,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "runtime_handoff_template_binding_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1719,6 +1752,28 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract universe_benchmark_binding_semantics must not use a forbidden benchmark value"
         )
+    runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
+    expected_runtime_template_binding_values = {
+        "semantic_name": "a_share_rd_agent_runtime_handoff_template_binding",
+        "handoff_id": REQUIRED_QLIB_RUNTIME_HANDOFF_ID,
+        "binding_kind": "rdagent_qlib_template_backtest_runtime_kwargs",
+        "rdagent_template_paths": list(QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS),
+        "runtime_rule": "rdagent_templates_must_bind_port_analysis_backtest_to_qlib_runtime_handoff_values",
+        "prompt_boundary_rule": "execution_kwargs_remain_runtime_handoff_not_prompt_authority",
+        "rdagent_rule": "consume_qlib_runtime_handoff_values_without_redefining_a_share_execution_kwargs",
+    }
+    for key, expected_value in expected_runtime_template_binding_values.items():
+        if runtime_template_binding.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"runtime_handoff_template_binding_semantics must preserve {key}"
+            )
+    for forbidden_key in ("required_backtest_kwargs", "forbidden_legacy_exchange_kwargs"):
+        if forbidden_key in runtime_template_binding:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"runtime_handoff_template_binding_semantics must not expose {forbidden_key}"
+            )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -2449,6 +2504,27 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract runtime_handoff_contract must require obligation {key}"
             )
+    template_runtime_binding = _mapping(runtime_handoff.get("template_runtime_binding"))
+    expected_template_runtime_binding = {
+        "semantic_name": "a_share_rd_agent_runtime_handoff_template_binding",
+        "handoff_id": REQUIRED_QLIB_RUNTIME_HANDOFF_ID,
+        "binding_kind": "rdagent_qlib_template_backtest_runtime_kwargs",
+        "rdagent_template_paths": list(QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS),
+        "required_backtest_kwargs": QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS,
+        "forbidden_legacy_exchange_kwargs": QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS,
+        "runtime_rule": "rdagent_templates_must_bind_port_analysis_backtest_to_qlib_runtime_handoff_values",
+        "prompt_boundary_rule": "execution_kwargs_remain_runtime_handoff_not_prompt_authority",
+        "rdagent_rule": "consume_qlib_runtime_handoff_values_without_redefining_a_share_execution_kwargs",
+    }
+    for key, expected_value in expected_template_runtime_binding.items():
+        if template_runtime_binding.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract runtime_handoff_contract " f"template_runtime_binding must preserve {key}"
+            )
+    if template_runtime_binding["required_backtest_kwargs"] != runtime_surfaces["backtest_kwargs"]:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract template_runtime_binding must match runtime_surfaces.backtest_kwargs"
+        )
 
     must_not_redefine = contract.get("rdagent_must_not_redefine")
     if not isinstance(must_not_redefine, list):
