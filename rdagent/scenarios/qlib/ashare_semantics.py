@@ -41,11 +41,24 @@ QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS = (
 QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS = QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS
 QLIB_ASHARE_PROMPT_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)
+QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC = QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS[0]
 QLIB_ASHARE_BANDIT_METRIC_PATHS = (
     *QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
     *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
 )
 QLIB_ASHARE_UI_SELECTED_METRICS = ("IC", *QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS)
+QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME = "drawdown_adjusted_return"
+QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS = (
+    "rdagent/scenarios/qlib/experiment/prompts.yaml",
+    "rdagent/scenarios/qlib/prompts.yaml",
+)
+QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS = (
+    "rdagent/scenarios/qlib/developer/feedback.py",
+    "rdagent/scenarios/qlib/proposal/bandit.py",
+    "rdagent/scenarios/qlib/experiment/prompts.yaml",
+    "rdagent/scenarios/qlib/prompts.yaml",
+    "rdagent/log/ui/app.py",
+)
 
 
 class QlibAshareSemanticContractError(RuntimeError):
@@ -179,6 +192,7 @@ def format_rd_agent_ashare_semantic_context(
     prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
+    feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
@@ -303,6 +317,14 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_ui_metric_paths", [])),
             f"- portfolio-risk annualization scaler: {portfolio_risk.get('day_annualization_scaler')}",
             f"- portfolio-risk max drawdown rule: {portfolio_risk.get('max_drawdown_rule')}",
+            f"- feedback-metric authority: pyqlib ({feedback_metric.get('portfolio_metric_authority')})",
+            f"- feedback-metric primary: {feedback_metric.get('feedback_primary_metric')}",
+            "- feedback-metric paths: "
+            + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
+            f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
+            f"- feedback-metric utility rule: {feedback_metric.get('derived_bandit_utility_rule')}",
+            "- feedback-metric forbidden aliases: "
+            + ", ".join(str(item) for item in feedback_metric.get("forbidden_metric_aliases", [])),
             f"- benchmark-return authority: pyqlib ({benchmark_return.get('benchmark_calculation_authority')})",
             f"- benchmark-return default: {benchmark_return.get('default_benchmark')}",
             f"- benchmark-return field: {benchmark_return.get('benchmark_field_expression')}",
@@ -460,6 +482,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_prediction_signal_score_or_return_realization",
         "redefine_signal_ic_or_rank_ic_metrics",
         "redefine_portfolio_risk_analysis_metrics",
+        "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
@@ -515,6 +538,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "feedback_metric_semantics",
         "benchmark_return_semantics",
         "rdagent_must_not_redefine",
     ):
@@ -555,6 +579,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "feedback_metric_semantics",
         "benchmark_return_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
@@ -1509,6 +1534,50 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"portfolio_risk_semantics must preserve {key}"
             )
+    feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
+    for key in (
+        "semantic_name",
+        "signal_metric_authority",
+        "portfolio_metric_authority",
+        "risk_metric_authority",
+        "prompt_metric_paths",
+        "feedback_metric_paths",
+        "bandit_metric_paths",
+        "feedback_primary_metric",
+        "sota_fallback_rule",
+        "derived_bandit_utility_name",
+        "derived_bandit_utility_rule",
+        "forbidden_metric_aliases",
+        "prompt_metric_wording_rule",
+        "rdagent_source_paths",
+        "rdagent_rule",
+    ):
+        if key not in feedback_metric:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload feedback_metric_semantics must include {key}"
+            )
+    expected_feedback_metric_values = {
+        "semantic_name": "a_share_rd_agent_feedback_metric_consumption",
+        "signal_metric_authority": "qlib.workflow.record_temp.SigAnaRecord",
+        "portfolio_metric_authority": "qlib.workflow.record_temp.PortAnaRecord",
+        "risk_metric_authority": "qlib.contrib.evaluate.risk_analysis",
+        "prompt_metric_paths": list(QLIB_ASHARE_PROMPT_METRIC_PATHS),
+        "feedback_metric_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS),
+        "bandit_metric_paths": list(QLIB_ASHARE_BANDIT_METRIC_PATHS),
+        "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
+        "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
+        "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+        "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
+        "forbidden_metric_aliases": ["sharpe", "Sharpe"],
+        "prompt_metric_wording_rule": "describe_exact_qlib_metric_paths_not_generic_return_sharpe_or_and_so_on",
+        "rdagent_source_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS),
+        "rdagent_rule": "consume_exact_qlib_metric_paths_and_label_derived_bandit_utility_as_non_qlib_metric",
+    }
+    for key, expected_value in expected_feedback_metric_values.items():
+        if feedback_metric.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"feedback_metric_semantics must preserve {key}"
+            )
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     for key in (
         "semantic_name",
@@ -2328,6 +2397,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "supervised_label_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
+        "feedback_metric_semantics",
         "benchmark_return_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
