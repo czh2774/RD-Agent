@@ -190,7 +190,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- price-limit fallback: {price_limit.get('board_fallback_policy')}",
             f"- price-limit fallback authority: {price_limit.get('fallback_authority_rule')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
+            f"- settlement runtime authority: pyqlib ({settlement.get('runtime_authority')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
+            f"- settlement sellable state: {settlement.get('sellable_state_field')}",
+            f"- settlement intraday buy rule: {settlement.get('intraday_buy_rule')}",
+            f"- settlement day commit rule: {settlement.get('day_commit_rule')}",
+            f"- settlement sell clip: {settlement.get('sell_order_clip_rule')}",
             f"- round-lot authority: pyqlib ({order_unit.get('trade_unit')} {order_unit.get('amount_unit')})",
             f"- round-lot buy rule: {order_unit.get('buy_rounding_rule')}",
             f"- round-lot sell rule: {order_unit.get('sell_rounding_rule')}",
@@ -276,6 +281,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_trade_unit_or_position_type",
         "redefine_price_limit_thresholds_or_authoritative_fields",
         "treat_board_fallback_as_primary_price_limit_authority",
+        "redefine_settlement_or_sellable_position_state",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
         "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -767,23 +773,84 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             )
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     for key in (
+        "semantic_name",
         "settlement_rule",
         "same_day_sell_policy",
         "position_type",
+        "sellable_state_field",
+        "initial_sellable_rule",
+        "intraday_buy_rule",
+        "intraday_bar_rule",
+        "day_commit_rule",
+        "sell_order_clip_rule",
+        "sell_overdraft_rule",
         "runtime_authority",
+        "exchange_clip_authority",
         "rdagent_rule",
     ):
         if key not in settlement:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload settlement_semantics must include {key}"
             )
+    if settlement.get("semantic_name") != "a_share_t_plus_1_stock_settlement":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must describe A-share T+1 settlement"
+        )
     if settlement.get("settlement_rule") != prompt_market.get("settlement_rule"):
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload settlement_semantics must match market settlement"
         )
+    if settlement.get("settlement_rule") != "t_plus_1_stock":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must bind T+1 stock settlement"
+        )
+    if settlement.get("same_day_sell_policy") != "shares_bought_today_are_unsellable_until_day_commit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must bind same-day sell policy"
+        )
     if settlement.get("position_type") != prompt_market.get("position_type"):
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload settlement_semantics must match market position"
+        )
+    if settlement.get("position_type") != "AsharePosition":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must use AsharePosition"
+        )
+    if settlement.get("sellable_state_field") != "sellable_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must expose sellable state"
+        )
+    if settlement.get("initial_sellable_rule") != "existing_or_settled_holdings_are_sellable":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare initial sellability"
+        )
+    if settlement.get("intraday_buy_rule") != "same_day_buys_increase_total_amount_but_not_sellable_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare intraday buy rule"
+        )
+    if settlement.get("intraday_bar_rule") != "non_day_bars_do_not_release_same_day_buys":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare intraday bar rule"
+        )
+    if settlement.get("day_commit_rule") != "day_bar_commit_sets_sellable_amount_to_total_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare day commit rule"
+        )
+    if settlement.get("sell_order_clip_rule") != "sell_orders_are_clipped_by_position_get_sellable_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare sell clipping"
+        )
+    if settlement.get("sell_overdraft_rule") != "AsharePosition_rejects_sells_above_sellable_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must declare sell overdraft rule"
+        )
+    if settlement.get("runtime_authority") != "qlib.backtest.position.AsharePosition":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must name Qlib position authority"
+        )
+    if settlement.get("exchange_clip_authority") != "qlib.backtest.exchange.Exchange._calc_trade_info_by_order":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload settlement_semantics must name exchange clip authority"
         )
     if settlement.get("rdagent_rule") != "describe_only_do_not_redefine_position_or_settlement":
         raise QlibAshareSemanticContractError(
@@ -909,6 +976,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "settlement_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
