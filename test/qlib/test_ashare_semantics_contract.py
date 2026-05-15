@@ -14,10 +14,14 @@ import pytest
 import rdagent.scenarios.qlib.ashare_semantics as rdagent_ashare_semantics
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS,
     QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
     QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
+    QLIB_ASHARE_BANDIT_REWARD_RULE,
+    QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,
     QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
     QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
@@ -483,6 +487,10 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
+        "bandit_feature_vector_fields": list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS),
+        "bandit_reward_objective": QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
+        "bandit_signal_context_rule": QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,
+        "bandit_reward_rule": QLIB_ASHARE_BANDIT_REWARD_RULE,
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],
         "forbidden_first_round_success_proxies": list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES),
         "prompt_metric_wording_rule": "describe_exact_qlib_metric_paths_not_generic_return_sharpe_or_and_so_on",
@@ -1543,6 +1551,10 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE == feedback["bandit_metric_extraction_rule"]
     assert QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE == feedback["bandit_metric_missing_failure"]
     assert QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE == feedback["bandit_metric_invalid_failure"]
+    assert list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS) == feedback["bandit_feature_vector_fields"]
+    assert QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE == feedback["bandit_reward_objective"]
+    assert QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE == feedback["bandit_signal_context_rule"]
+    assert QLIB_ASHARE_BANDIT_REWARD_RULE == feedback["bandit_reward_rule"]
     assert (
         list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES)
         == feedback["forbidden_first_round_success_proxies"]
@@ -1571,6 +1583,9 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "QlibAshareBanditMetricError" in bandit_source
     assert "result.get(" not in bandit_source
     assert "return Metrics()" not in bandit_source
+    assert "self.weights" not in bandit_source
+    assert "np.dot(self.weights" not in bandit_source
+    assert "return float(m.drawdown_adjusted_return)" in bandit_source
     assert "IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)" in feedback_source
     assert "QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
     assert "metric_name = QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
@@ -2317,6 +2332,7 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     monkeypatch.delitem(sys.modules, "rdagent.scenarios.qlib.proposal.bandit", raising=False)
 
     from rdagent.scenarios.qlib.proposal.bandit import (
+        EnvController,
         Metrics,
         QlibAshareBanditMetricError,
         extract_metrics_from_experiment,
@@ -2340,6 +2356,10 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     assert abs(metrics.drawdown_adjusted_return - 2.0) < 1e-12
     assert abs(metrics.as_vector()[-1] - 2.0) < 1e-12
     assert not hasattr(metrics, "sharpe")
+    controller = object.__new__(EnvController)
+    assert controller.reward(metrics) == 2.0
+    with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_REWARD_RULE):
+        EnvController(weights=(0.1, 0.1, 0.05, 0.05, 0.25, 0.15, 0.1, 0.2))
 
     missing_experiment = types.SimpleNamespace(result={QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0]: 0.1})
     with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE):
@@ -3539,6 +3559,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_bandit_metric_failure_rul
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_bandit_reward_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "bandit_reward_rule"
+    ] = "rdagent_bandit_reward_may_weight_icir_as_reward_term"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_feedback_derived_utility_alias_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"]["derived_bandit_utility_name"] = "sharpe"
@@ -4182,6 +4212,10 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "feedback-metric utility rule: "
         "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric"
     ) in text
+    assert "feedback-metric bandit feature vector: " + ", ".join(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS) in text
+    assert f"feedback-metric bandit reward objective: {QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE}" in text
+    assert f"feedback-metric bandit signal context: {QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE}" in text
+    assert f"feedback-metric bandit reward rule: {QLIB_ASHARE_BANDIT_REWARD_RULE}" in text
     assert "feedback-metric forbidden aliases: sharpe, Sharpe" in text
     assert (
         "feedback-metric forbidden first-round success proxies: "

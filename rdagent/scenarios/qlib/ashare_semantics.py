@@ -175,6 +175,21 @@ QLIB_ASHARE_BANDIT_METRIC_PATHS = (
 )
 QLIB_ASHARE_UI_SELECTED_METRICS = ("IC", *QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS)
 QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME = "drawdown_adjusted_return"
+QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS = (
+    "ic",
+    "icir",
+    "rank_ic",
+    "rank_icir",
+    "arr",
+    "ir",
+    "mdd",
+    QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+)
+QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE = QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME
+QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE = "signal_ic_metrics_are_bandit_context_features_not_reward_terms"
+QLIB_ASHARE_BANDIT_REWARD_RULE = (
+    "rdagent_bandit_reward_must_use_drawdown_adjusted_return_without_weighted_signal_metric_terms"
+)
 QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
     "rdagent/scenarios/qlib/prompts.yaml",
@@ -557,6 +572,11 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
             f"- feedback-metric utility rule: {feedback_metric.get('derived_bandit_utility_rule')}",
+            "- feedback-metric bandit feature vector: "
+            + ", ".join(str(item) for item in feedback_metric.get("bandit_feature_vector_fields", [])),
+            f"- feedback-metric bandit reward objective: {feedback_metric.get('bandit_reward_objective')}",
+            f"- feedback-metric bandit signal context: {feedback_metric.get('bandit_signal_context_rule')}",
+            f"- feedback-metric bandit reward rule: {feedback_metric.get('bandit_reward_rule')}",
             "- feedback-metric forbidden aliases: "
             + ", ".join(str(item) for item in feedback_metric.get("forbidden_metric_aliases", [])),
             "- feedback-metric forbidden first-round success proxies: "
@@ -1946,6 +1966,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_invalid_failure",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
+        "bandit_feature_vector_fields",
+        "bandit_reward_objective",
+        "bandit_signal_context_rule",
+        "bandit_reward_rule",
         "forbidden_metric_aliases",
         "forbidden_first_round_success_proxies",
         "prompt_metric_wording_rule",
@@ -1973,6 +1997,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
+        "bandit_feature_vector_fields": list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS),
+        "bandit_reward_objective": QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
+        "bandit_signal_context_rule": QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,
+        "bandit_reward_rule": QLIB_ASHARE_BANDIT_REWARD_RULE,
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],
         "forbidden_first_round_success_proxies": list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES),
         "prompt_metric_wording_rule": "describe_exact_qlib_metric_paths_not_generic_return_sharpe_or_and_so_on",
