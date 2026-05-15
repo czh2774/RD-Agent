@@ -12,6 +12,9 @@ from rdagent.components.document_reader.document_reader import (
 from rdagent.components.loader.task_loader import ModelTaskLoader
 from rdagent.log import rdagent_logger as logger
 from rdagent.oai.llm_utils import APIBackend
+from rdagent.scenarios.qlib.ashare_semantics import (
+    build_qlib_ashare_model_task_output_boundary,
+)
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.workflow import wait_retry
@@ -100,6 +103,7 @@ class ModelExperimentLoaderFromDict(ModelTaskLoader):
     def load(self, model_dict: dict) -> QlibModelExperiment:
         """Load data from a dict."""
         task_l = []
+        model_output_boundary = build_qlib_ashare_model_task_output_boundary()
         for model_name, model_data in model_dict.items():
             task = ModelTask(
                 name=model_name,
@@ -110,6 +114,7 @@ class ModelExperimentLoaderFromDict(ModelTaskLoader):
                 hyperparameters=model_data["hyperparameters"],
                 training_hyperparameters=model_data["training_hyperparameters"],
                 model_type=model_data["model_type"],
+                model_output_boundary=model_output_boundary,
             )
             task_l.append(task)
         return QlibModelExperiment(sub_tasks=task_l)
