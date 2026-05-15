@@ -59,6 +59,38 @@ def _account_update_semantics() -> dict[str, str]:
     }
 
 
+def _account_valuation_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_account_bar_end_valuation",
+        "bar_end_authority": "qlib.backtest.account.Account.update_bar_end",
+        "position_refresh_authority": "qlib.backtest.account.Account.update_current_position",
+        "portfolio_metrics_authority": "qlib.backtest.account.Account.update_portfolio_metrics",
+        "history_position_authority": "qlib.backtest.account.Account.update_hist_positions",
+        "price_update_authority": "qlib.backtest.position.Position.update_stock_price",
+        "value_authority": "qlib.backtest.position.Position.calculate_value",
+        "stock_value_authority": "qlib.backtest.position.Position.calculate_stock_value",
+        "holding_count_authority": "qlib.backtest.position.Position.add_count_all",
+        "ashare_sellable_release_authority": "qlib.backtest.position.AsharePosition.add_count_all",
+        "close_price_authority": "qlib.backtest.exchange.Exchange.get_close",
+        "bar_end_sequence": [
+            "refresh_current_position_prices_and_holding_counts",
+            "update_portfolio_metrics_when_enabled",
+            "snapshot_history_positions_when_enabled",
+            "update_trade_indicators",
+        ],
+        "mark_price_rule": "non_suspended_positions_mark_to_bar_close_at_bar_end",
+        "suspension_price_rule": "suspended_positions_keep_previous_price_during_bar_end_refresh",
+        "account_value_rule": "account_value_equals_stock_value_plus_cash_plus_cash_delay",
+        "stock_value_rule": "stock_value_equals_position_amount_times_current_position_price",
+        "portfolio_return_rule": "return_rate_uses_account_earning_plus_current_cost_over_last_account_value",
+        "history_snapshot_rule": "history_positions_store_deepcopy_after_now_account_value_and_weights_refresh",
+        "holding_count_rule": "bar_end_refresh_increments_position_count_for_account_frequency",
+        "daily_sellable_release_rule": "ashare_day_bar_count_refresh_releases_total_amount_to_sellable_amount",
+        "infinite_position_rule": "skip_update_position_does_not_refresh_prices_counts_metrics_or_history",
+        "rdagent_rule": "describe_only_do_not_redefine_account_valuation_or_bar_end_refresh",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -73,7 +105,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -103,6 +135,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_order_fill_amount_or_clip_sequence",
                 "redefine_market_impact_or_cost_ratio",
                 "redefine_account_position_or_cash_mutation_order",
+                "redefine_account_valuation_or_bar_end_refresh",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -133,6 +166,7 @@ def _valid_contract() -> dict[str, Any]:
                 "order_fill_amount_semantics",
                 "market_impact_semantics",
                 "account_update_semantics",
+                "account_valuation_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -166,6 +200,7 @@ def _valid_contract() -> dict[str, Any]:
                 "transaction_cost_semantics",
                 "market_impact_semantics",
                 "account_update_semantics",
+                "account_valuation_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -401,6 +436,7 @@ def _valid_contract() -> dict[str, Any]:
             },
             "market_impact_semantics": _market_impact_semantics(),
             "account_update_semantics": _account_update_semantics(),
+            "account_valuation_semantics": _account_valuation_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -548,6 +584,7 @@ def _valid_contract() -> dict[str, Any]:
             "transaction_cost_semantics",
             "market_impact_semantics",
             "account_update_semantics",
+            "account_valuation_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -617,6 +654,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_order_fill_amount_or_clip_sequence" in boundary["rdagent_forbidden_actions"]
     assert "redefine_market_impact_or_cost_ratio" in boundary["rdagent_forbidden_actions"]
     assert "redefine_account_position_or_cash_mutation_order" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_account_valuation_or_bar_end_refresh" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -629,6 +667,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "transaction_cost_semantics",
         "market_impact_semantics",
         "account_update_semantics",
+        "account_valuation_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -700,6 +739,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     )
     assert context["prompt_projection_payload"]["market_impact_semantics"] == _market_impact_semantics()
     assert context["prompt_projection_payload"]["account_update_semantics"] == _account_update_semantics()
+    assert context["prompt_projection_payload"]["account_valuation_semantics"] == _account_valuation_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -989,6 +1029,14 @@ def test_malformed_qlib_prompt_projection_without_account_update_fails_closed() 
     del contract["prompt_projection_payload"]["account_update_semantics"]
 
     with pytest.raises(QlibAshareSemanticContractError, match="account_update_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_account_valuation_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["account_valuation_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="account_valuation_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1337,6 +1385,37 @@ def test_malformed_qlib_prompt_projection_with_mutable_account_cash_rule_fails_c
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_account_valuation_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["account_valuation_semantics"][
+        "bar_end_authority"
+    ] = "rdagent.account.ValuationPolicy"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="account_valuation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_account_valuation_sequence_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["account_valuation_semantics"]["bar_end_sequence"] = [
+        "update_trade_indicators",
+        "prompt_mark_to_market",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="account_valuation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_account_valuation_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["account_valuation_semantics"][
+        "account_value_rule"
+    ] = "account_value_excludes_cash_delay"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="account_valuation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -1543,6 +1622,20 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "account-update sellable rule: "
         "ashare_sells_reduce_sellable_amount_and_day_bar_count_refresh_releases_total_amount"
     ) in text
+    assert "account-valuation authority: pyqlib (qlib.backtest.account.Account.update_bar_end)" in text
+    assert (
+        "account-valuation bar-end sequence: refresh_current_position_prices_and_holding_counts -> "
+        "update_portfolio_metrics_when_enabled -> snapshot_history_positions_when_enabled -> update_trade_indicators"
+    ) in text
+    assert "account-valuation mark price rule: non_suspended_positions_mark_to_bar_close_at_bar_end" in text
+    assert (
+        "account-valuation suspension price rule: " "suspended_positions_keep_previous_price_during_bar_end_refresh"
+    ) in text
+    assert "account-valuation account value rule: account_value_equals_stock_value_plus_cash_plus_cash_delay" in text
+    assert (
+        "account-valuation daily sellable release rule: "
+        "ashare_day_bar_count_refresh_releases_total_amount_to_sellable_amount"
+    ) in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -1630,7 +1723,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
