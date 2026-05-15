@@ -1551,6 +1551,24 @@ def test_rd_agent_factor_relevance_prompt_applies_qlib_source_boundary_forbidden
     assert "analyst consensus expectation factors" in relevance_prompt
 
 
+def test_rd_agent_factor_duplicate_prompt_applies_qlib_source_boundary_forbidden_defaults() -> None:
+    prompt_text = (REPO_ROOT / "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml").read_text()
+    duplicate_prompt = _read_prompt_block(prompt_text, "factor_duplicate_system")
+
+    assert "Qlib daily A-share research data boundary" in duplicate_prompt
+    assert "`datetime` and `instrument`" in duplicate_prompt
+    for field in QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS:
+        assert field in duplicate_prompt
+    assert "Alpha158/Alpha360" in duplicate_prompt
+    assert "derived features must not introduce new source fields" in duplicate_prompt
+    assert "source owner, field identity, and daily point-in-time validity" in duplicate_prompt
+    assert "Do not assume turnover, minute-level high-frequency data" in duplicate_prompt
+    assert "Do not treat turnover, minute-level high-frequency data" in duplicate_prompt
+    assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in duplicate_prompt
+    assert "not a default factor input field" in duplicate_prompt
+    assert "analyst consensus expectation factors" in duplicate_prompt
+
+
 def test_rd_agent_feedback_metric_prompts_use_exact_qlib_paths_without_sharpe_alias() -> None:
     combined = "\n".join((REPO_ROOT / path).read_text() for path in QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS)
 
