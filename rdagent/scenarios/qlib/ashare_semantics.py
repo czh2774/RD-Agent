@@ -138,6 +138,7 @@ def format_rd_agent_ashare_semantic_context(
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     order_tradability = _mapping(prompt_payload.get("order_tradability_semantics"))
+    order_fill_amount = _mapping(prompt_payload.get("order_fill_amount_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
     cash_settlement = _mapping(prompt_payload.get("cash_settlement_semantics"))
@@ -210,6 +211,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- order-tradability suspension rule: {order_tradability.get('suspension_rule')}",
             f"- order-tradability directional limit rule: {order_tradability.get('directional_limit_rule')}",
             f"- order-tradability failure result: {order_tradability.get('failure_result')}",
+            f"- order-fill authority: pyqlib ({order_fill_amount.get('runtime_authority')})",
+            f"- order-fill state field: {order_fill_amount.get('fill_state_field')}",
+            "- order-fill clip sequence: "
+            + " -> ".join(str(item) for item in order_fill_amount.get("clip_sequence", [])),
+            f"- order-fill trade value rule: {order_fill_amount.get('trade_value_rule')}",
+            f"- order-fill cost rule: {order_fill_amount.get('cost_rule')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
             f"- settlement runtime authority: pyqlib ({settlement.get('runtime_authority')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
@@ -318,6 +325,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_price_limit_thresholds_or_authoritative_fields",
         "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_order_tradability_or_limit_checks",
+        "redefine_order_fill_amount_or_clip_sequence",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -361,6 +369,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "universe_membership_semantics",
         "cash_settlement_semantics",
         "order_tradability_semantics",
+        "order_fill_amount_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -395,6 +404,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_adjustment_semantics",
         "price_limit_semantics",
         "order_tradability_semantics",
+        "order_fill_amount_semantics",
         "market_semantics.data_frequency",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -991,6 +1001,60 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"order_tradability_semantics must preserve {key}"
             )
+    order_fill_amount = _mapping(prompt_payload.get("order_fill_amount_semantics"))
+    for key in (
+        "semantic_name",
+        "runtime_authority",
+        "fill_state_field",
+        "initial_fill_rule",
+        "clip_sequence",
+        "volume_clip_authority",
+        "sellable_position_authority",
+        "cash_authority",
+        "cash_limit_authority",
+        "round_lot_authority",
+        "factor_authority",
+        "unknown_position_rule",
+        "sell_full_liquidation_rule",
+        "trade_value_rule",
+        "cost_rule",
+        "rdagent_rule",
+    ):
+        if key not in order_fill_amount:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload order_fill_amount_semantics must include {key}"
+            )
+    expected_order_fill_values = {
+        "semantic_name": "a_share_order_fill_amount_gate",
+        "runtime_authority": "qlib.backtest.exchange.Exchange._calc_trade_info_by_order",
+        "fill_state_field": "Order.deal_amount",
+        "initial_fill_rule": "deal_amount_starts_as_order_amount_before_runtime_clips",
+        "clip_sequence": [
+            "volume_capacity_clip",
+            "sellable_position_clip",
+            "sell_cash_cost_guard",
+            "buy_cash_cost_guard",
+            "round_lot_or_full_liquidation_clip",
+        ],
+        "volume_clip_authority": "qlib.backtest.exchange.Exchange._clip_amount_by_volume",
+        "sellable_position_authority": "qlib.backtest.position.Position.get_sellable_amount",
+        "cash_authority": "qlib.backtest.position.Position.get_cash",
+        "cash_limit_authority": "qlib.backtest.exchange.Exchange._get_buy_amount_by_cash_limit",
+        "round_lot_authority": "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit",
+        "factor_authority": "qlib.backtest.exchange.Exchange.get_factor",
+        "unknown_position_rule": "unknown_position_uses_round_lot_without_cash_or_sellable_clips",
+        "sell_full_liquidation_rule": (
+            "sells_equal_to_current_sellable_amount_keep_full_liquidation_without_round_lot_residual"
+        ),
+        "trade_value_rule": "trade_value_is_final_deal_amount_times_trade_price",
+        "cost_rule": "trade_cost_recomputed_after_final_deal_amount",
+        "rdagent_rule": "describe_only_do_not_redefine_order_fill_amount_or_clip_sequence",
+    }
+    for key, expected_value in expected_order_fill_values.items():
+        if order_fill_amount.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"order_fill_amount_semantics must preserve {key}"
+            )
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     for key in (
         "semantic_name",
@@ -1397,6 +1461,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_adjustment_semantics",
         "price_limit_semantics",
         "order_tradability_semantics",
+        "order_fill_amount_semantics",
         "settlement_semantics",
         "cash_settlement_semantics",
         "cash_constraint_semantics",

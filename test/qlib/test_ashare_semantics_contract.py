@@ -31,7 +31,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, settlement, cash-settlement, cash/shorting, liquidity/capacity, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, settlement, cash-settlement, cash/shorting, liquidity/capacity, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -58,6 +58,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_price_limit_thresholds_or_authoritative_fields",
                 "treat_board_fallback_as_primary_price_limit_authority",
                 "redefine_order_tradability_or_limit_checks",
+                "redefine_order_fill_amount_or_clip_sequence",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -85,6 +86,7 @@ def _valid_contract() -> dict[str, Any]:
                 "universe_membership_semantics",
                 "cash_settlement_semantics",
                 "order_tradability_semantics",
+                "order_fill_amount_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -121,6 +123,7 @@ def _valid_contract() -> dict[str, Any]:
                 "price_adjustment_semantics",
                 "price_limit_semantics",
                 "order_tradability_semantics",
+                "order_fill_amount_semantics",
                 "settlement_semantics",
                 "cash_settlement_semantics",
                 "cash_constraint_semantics",
@@ -322,6 +325,32 @@ def _valid_contract() -> dict[str, Any]:
                 "decision_rule": "check_order_delegates_to_is_stock_tradable_before_deal_execution",
                 "rdagent_rule": "describe_only_do_not_redefine_order_tradability_or_limit_checks",
             },
+            "order_fill_amount_semantics": {
+                "semantic_name": "a_share_order_fill_amount_gate",
+                "runtime_authority": "qlib.backtest.exchange.Exchange._calc_trade_info_by_order",
+                "fill_state_field": "Order.deal_amount",
+                "initial_fill_rule": "deal_amount_starts_as_order_amount_before_runtime_clips",
+                "clip_sequence": [
+                    "volume_capacity_clip",
+                    "sellable_position_clip",
+                    "sell_cash_cost_guard",
+                    "buy_cash_cost_guard",
+                    "round_lot_or_full_liquidation_clip",
+                ],
+                "volume_clip_authority": "qlib.backtest.exchange.Exchange._clip_amount_by_volume",
+                "sellable_position_authority": "qlib.backtest.position.Position.get_sellable_amount",
+                "cash_authority": "qlib.backtest.position.Position.get_cash",
+                "cash_limit_authority": "qlib.backtest.exchange.Exchange._get_buy_amount_by_cash_limit",
+                "round_lot_authority": "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit",
+                "factor_authority": "qlib.backtest.exchange.Exchange.get_factor",
+                "unknown_position_rule": "unknown_position_uses_round_lot_without_cash_or_sellable_clips",
+                "sell_full_liquidation_rule": (
+                    "sells_equal_to_current_sellable_amount_keep_full_liquidation_without_round_lot_residual"
+                ),
+                "trade_value_rule": "trade_value_is_final_deal_amount_times_trade_price",
+                "cost_rule": "trade_cost_recomputed_after_final_deal_amount",
+                "rdagent_rule": "describe_only_do_not_redefine_order_fill_amount_or_clip_sequence",
+            },
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -472,6 +501,7 @@ def _valid_contract() -> dict[str, Any]:
             "price_adjustment_semantics",
             "price_limit_semantics",
             "order_tradability_semantics",
+            "order_fill_amount_semantics",
             "settlement_semantics",
             "cash_settlement_semantics",
             "cash_constraint_semantics",
@@ -532,6 +562,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_price_limit_thresholds_or_authoritative_fields" in boundary["rdagent_forbidden_actions"]
     assert "treat_board_fallback_as_primary_price_limit_authority" in boundary["rdagent_forbidden_actions"]
     assert "redefine_order_tradability_or_limit_checks" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_order_fill_amount_or_clip_sequence" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -547,6 +578,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "price_adjustment_semantics",
         "price_limit_semantics",
         "order_tradability_semantics",
+        "order_fill_amount_semantics",
         "settlement_semantics",
         "cash_settlement_semantics",
         "cash_constraint_semantics",
@@ -657,6 +689,21 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["order_tradability_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_order_tradability_or_limit_checks"
+    )
+    assert (
+        context["prompt_projection_payload"]["order_fill_amount_semantics"]["runtime_authority"]
+        == "qlib.backtest.exchange.Exchange._calc_trade_info_by_order"
+    )
+    assert context["prompt_projection_payload"]["order_fill_amount_semantics"]["clip_sequence"] == [
+        "volume_capacity_clip",
+        "sellable_position_clip",
+        "sell_cash_cost_guard",
+        "buy_cash_cost_guard",
+        "round_lot_or_full_liquidation_clip",
+    ]
+    assert (
+        context["prompt_projection_payload"]["order_fill_amount_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_order_fill_amount_or_clip_sequence"
     )
     assert context["prompt_projection_payload"]["settlement_semantics"]["settlement_rule"] == "t_plus_1_stock"
     assert (
@@ -831,6 +878,14 @@ def test_malformed_qlib_prompt_projection_without_order_tradability_fails_closed
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_order_fill_amount_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["order_fill_amount_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_fill_amount_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_instrument_identity_semantics_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["instrument_identity_semantics"]
@@ -964,6 +1019,37 @@ def test_malformed_qlib_prompt_projection_with_mutable_order_failure_result_fail
     contract["prompt_projection_payload"]["order_tradability_semantics"]["failure_result"] = "raise_prompt_error"
 
     with pytest.raises(QlibAshareSemanticContractError, match="order_tradability_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_fill_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_fill_amount_semantics"][
+        "runtime_authority"
+    ] = "rdagent.scenarios.qlib.fill_policy"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_fill_amount_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_fill_sequence_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_fill_amount_semantics"]["clip_sequence"] = [
+        "prompt_round_lot_first",
+        "cash_after_fill",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_fill_amount_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_fill_trade_value_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_fill_amount_semantics"][
+        "trade_value_rule"
+    ] = "trade_value_uses_requested_amount"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_fill_amount_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1350,6 +1436,14 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "order-tradability directional limit rule: " "buy_orders_check_limit_buy_and_sell_orders_check_limit_sell"
     ) in text
     assert "order-tradability failure result: deal_amount_zero_trade_value_zero_cost_nan_price" in text
+    assert "order-fill authority: pyqlib (qlib.backtest.exchange.Exchange._calc_trade_info_by_order)" in text
+    assert "order-fill state field: Order.deal_amount" in text
+    assert (
+        "order-fill clip sequence: volume_capacity_clip -> sellable_position_clip -> sell_cash_cost_guard -> "
+        "buy_cash_cost_guard -> round_lot_or_full_liquidation_clip"
+    ) in text
+    assert "order-fill trade value rule: trade_value_is_final_deal_amount_times_trade_price" in text
+    assert "order-fill cost rule: trade_cost_recomputed_after_final_deal_amount" in text
     assert "settlement authority: pyqlib (t_plus_1_stock)" in text
     assert "settlement runtime authority: pyqlib (qlib.backtest.position.AsharePosition)" in text
     assert "same-day sell policy: shares_bought_today_are_unsellable_until_day_commit" in text
@@ -1382,8 +1476,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
         "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
-        "price_limit_semantics, order_tradability_semantics, settlement_semantics, cash_settlement_semantics, cash_constraint_semantics, "
-        "liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, same_day_sell_policy, "
+        "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
+        "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
+        "settlement_rule, same_day_sell_policy, "
         "data_frequency, price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
