@@ -130,6 +130,7 @@ def format_rd_agent_ashare_semantic_context(
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
     instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
+    transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
@@ -157,6 +158,12 @@ def format_rd_agent_ashare_semantic_context(
                 for suffix, prefix in sorted(_mapping(instrument_identity.get("accepted_provider_suffixes")).items())
             ),
             f"- board identity authority: pyqlib ({instrument_identity.get('board_classification_authority')})",
+            f"- transaction-cost authority: pyqlib ({transaction_cost.get('runtime_authority')})",
+            "- transaction-cost buy components: "
+            + ", ".join(str(item) for item in transaction_cost.get("buy_cost_components", [])),
+            "- transaction-cost sell components: "
+            + ", ".join(str(item) for item in transaction_cost.get("sell_cost_components", [])),
+            f"- transaction-cost values: {transaction_cost.get('numeric_values_exposure')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
@@ -242,6 +249,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must allow RD-Agent action {action}")
     for action in (
         "redefine_instrument_identity_or_board_mapping",
+        "redefine_transaction_cost_model",
         "redefine_trade_unit_or_position_type",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
@@ -294,6 +302,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         )
     for key in (
         "instrument_identity_semantics",
+        "transaction_cost_semantics",
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -427,6 +436,57 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     if instrument_identity.get("rdagent_rule") != "describe_only_do_not_redefine_instrument_or_board_identity":
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must forbid RD-Agent redefinition"
+        )
+    transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
+    for key in (
+        "semantic_name",
+        "cost_model_scope",
+        "buy_cost_components",
+        "sell_cost_components",
+        "minimum_fee_rule",
+        "zero_trade_rule",
+        "market_impact_rule",
+        "numeric_values_exposure",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in transaction_cost:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must include {key}"
+            )
+    if transaction_cost.get("semantic_name") != "a_share_transaction_cost_structure":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must describe A-share costs"
+        )
+    if transaction_cost.get("cost_model_scope") != "qlib_runtime_execution_only":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must stay runtime scoped"
+        )
+    buy_components = _string_list(transaction_cost.get("buy_cost_components"))
+    sell_components = _string_list(transaction_cost.get("sell_cost_components"))
+    for component in ("commission", "minimum_commission_floor"):
+        if component not in buy_components:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must include buy {component}"
+            )
+    for component in ("commission", "stamp_tax", "minimum_commission_floor"):
+        if component not in sell_components:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must include sell {component}"
+            )
+    if transaction_cost.get("numeric_values_exposure") != "runtime_handoff_only_not_prompt_projection":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must not expose numeric values"
+        )
+    if transaction_cost.get("runtime_authority") != (
+        "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.calculate_trade_cost"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must name Qlib runtime authority"
+        )
+    if transaction_cost.get("rdagent_rule") != "describe_only_do_not_redefine_transaction_cost_model":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must forbid RD-Agent redefinition"
         )
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     for key in (
