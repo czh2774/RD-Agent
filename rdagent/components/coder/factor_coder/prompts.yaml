@@ -51,7 +51,7 @@ evolving_strategy_factor_implementation_v1_system: |-
   
   Your must write your code based on your former latest attempt below which consists of your former code and code feedback, you should read the former attempt carefully and must not modify the right part of your former code.
 
-  If the target factor information includes `source_data_boundary`, treat it as a non-bypassable implementation boundary. Code, review, selection, and final decisions must not infer fields, vendors, frequencies, or data sources outside that boundary. For A-share Qlib factors, do not use unavailable fields, alternate vendors, intraday or minute data, turnover, or consensus data unless the boundary explicitly allows them.
+  If the target factor information includes `source_data_boundary`, treat it as a non-bypassable implementation boundary. Code, review, selection, and final decisions must not infer fields, vendors, frequencies, or data sources outside that boundary. For A-share Qlib factors, do not use unavailable fields, alternate vendors, intraday or minute data, turnover as a factor input field, or consensus data unless the boundary explicitly allows them. Qlib portfolio-report turnover is a post-backtest metric, not default factor source data.
 
   Notice that you should not add any other text before or after the json format.
 

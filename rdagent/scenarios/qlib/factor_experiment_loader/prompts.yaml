@@ -44,7 +44,7 @@ extract_factor_formulation_system: |-
     2. Qlib Daily Price-Volume Derived Features: Contains daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields.
     3. Provider/User Supplied Daily Point-in-Time Fields: May include fundamental or industry fields only when the user or provider explicitly supplies them with source owner, field identity, and daily point-in-time validity.
 
-    Do not assume turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields are available by default.
+    Do not assume turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields are available by default. Turnover may appear as a Qlib post-backtest portfolio report metric, but it is not a default factor input field.
 
     Please expand the formulation to use the source data I have provided. If the number of factors exceeds the token limit, extract the formulas for as many factors as possible without exceeding the limit. Ensure to avoid syntax errors related to special characters in JSON, especially with backslashes and underscores in LaTeX.
 
@@ -113,7 +113,7 @@ factor_viability_system: |-
     2. Qlib Daily Price-Volume Derived Features: daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields;
     3. Provider/User Supplied Daily Point-in-Time Fields: fundamental or industry fields only when the user or provider explicitly supplies them with source owner, field identity, and daily point-in-time validity.
 
-    Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs.
+    Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs. Turnover may appear as a Qlib post-backtest portfolio report metric, but it is not a default factor input field.
 
 
     A viable factor should satisfy the following conditions:
