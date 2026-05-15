@@ -114,13 +114,13 @@ factor_hypothesis_specification: |-
     - No matter how many factors you plan to generate, only reply with one set of hypothesis and reason. The hypothesis can include the proposal of multiple factors at the same time.
   6. Guardrails
     - Do not output software-debugging categories or setup, configuration, calibration style plans.
-    - Always propose concrete market-data alpha directions grounded in Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`) or explicitly supplied daily point-in-time fields that name source owner, field identity, and daily point-in-time validity.
+    - Always propose concrete market-data alpha directions grounded in Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`), Qlib Alpha158/Alpha360 derived features computed only from those registered daily price-volume fields, or explicitly supplied daily point-in-time fields that name source owner, field identity, and daily point-in-time validity.
     - Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs. Turnover may appear as a Qlib post-backtest portfolio report metric, but it is not a default factor input field.
     - Treat model outputs as Qlib prediction signal scores for LABEL0, not realized returns or guaranteed portfolio returns.
 
 factor_experiment_output_format: |-
   The output should follow JSON format. The schema is as follows:
-  Every factor description, formulation, and variables map must bind the factor to Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`) or explicitly supplied daily point-in-time fields that name source owner, field identity, and daily point-in-time validity.
+  Every factor description, formulation, and variables map must bind the factor to Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`), Qlib Alpha158/Alpha360 derived features computed only from those registered daily price-volume fields, or explicitly supplied daily point-in-time fields that name source owner, field identity, and daily point-in-time validity.
   Do not use turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs. Turnover may appear as a Qlib post-backtest portfolio report metric, but it is not a default factor input field.
   {
       "factor name 1": {

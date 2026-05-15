@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
     QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES,
     QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS,
@@ -97,6 +98,7 @@ def build_qlib_ashare_factor_task_source_boundary() -> str:
         "Qlib daily A-share research data boundary: use only registered daily Qlib fields "
         f"({allowed_fields}) or explicitly supplied daily point-in-time fields that satisfy "
         f"{QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE}. "
+        f"Derived features: {QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE}. "
         f"Forbidden default sources: {forbidden_sources}. "
         f"Turnover boundary: {QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE}. "
         "Do not infer unregistered fields during factor implementation or code review."
