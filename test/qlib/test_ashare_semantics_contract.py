@@ -100,6 +100,36 @@ def _valid_contract() -> dict[str, Any]:
                 "market_semantics.cost_model",
             ],
         },
+        "prompt_projection_payload": {
+            "projection_id": "qlib_joinquant_ashare_prompt_projection_v1",
+            "contract_id": "rdagent_qlib_joinquant_ashare_semantic_contract_v1",
+            "schema_version": "qlib_ashare_semantic_contract.v1",
+            "source_component": "qlib.backtest.ashare_semantics",
+            "consumer_component": "rdagent.scenarios.qlib.ashare_semantics",
+            "semantic_fingerprint": "a" * 64,
+            "semantic_boundary": {
+                "authority_component": "qlib.backtest.ashare_semantics",
+                "consumer_component": "rdagent.scenarios.qlib.ashare_semantics",
+                "authority_rule": "Qlib owns executable JoinQuant-compatible A-share backtest semantics.",
+                "consumer_rule": "RD-Agent may consume a bounded research-generation projection of this contract only.",
+            },
+            "failure_semantics": {
+                "missing_contract": "fail_closed",
+                "unsupported_schema_version": "fail_closed",
+                "missing_required_field": "fail_closed",
+                "malformed_contract": "fail_closed",
+                "runtime_projection_drift": "fail_closed",
+                "claim_without_evidence_fingerprint": "fail_closed",
+            },
+            "market_semantics": {
+                "market": "china_a_share",
+                "region": "cn",
+                "trade_unit": 100,
+                "position_type": "AsharePosition",
+                "limit_threshold": "joinquant_ashare",
+                "authoritative_limit_fields": ["$up_limit", "$down_limit"],
+            },
+        },
         "runtime_handoff_contract": {
             "handoff_id": "qlib_joinquant_ashare_runtime_handoff_v1",
             "handoff_kind": "qlib_owned_execution_kwargs",
@@ -205,7 +235,8 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     ]
     assert context["failure_contract"]["runtime_projection_drift"] == "fail_closed"
     assert "runtime_surfaces.backtest_kwargs" in context["prompt_projection"]["rdagent_prompt_forbidden_fields"]
-    assert context["qlib_market_semantics"]["trade_unit"] == 100
+    assert context["prompt_projection_payload"]["market_semantics"]["trade_unit"] == 100
+    assert "qlib_market_semantics" not in context
     assert "runtime_surfaces" not in context
 
 
@@ -260,6 +291,22 @@ def test_malformed_qlib_runtime_handoff_without_matching_fingerprint_fails_close
         build_rd_agent_ashare_runtime_handoff(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_raw_runtime_payload_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["runtime_surfaces"] = contract["runtime_surfaces"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prompt_projection_payload"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_matching_fingerprint_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["semantic_fingerprint"] = "b" * 64
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prompt_projection_payload"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delitem(sys.modules, "qlib.backtest.ashare_semantics", raising=False)
 
@@ -280,5 +327,6 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "RD-Agent must not redefine: trade_unit, position_type, price_limit_modes, cost_model" in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
+    assert "AsharePosition" in text
     assert "open_cost" not in text
     assert "close_tax" not in text
