@@ -36,13 +36,13 @@ extract_factor_formulation_system: |-
     1. For each factor, I need its calculation formula in LaTeX format. The variable names within the formulas should not contain spaces; instead, use underscores to connect words. Ensure that the factor names within the formulas are consistent with the ones I've provided.
     2. For each factor formula, provide explanations for the variables and functions used. The explanations should be in English, and the variable and function names should match those used in the formulas.
 
-    The default source data boundary is Qlib daily A-share research data. Use only registered daily Qlib fields or user/provider supplied daily point-in-time fields.
+    The default source data boundary is Qlib daily A-share research data. Use only registered daily Qlib fields or user/provider supplied daily point-in-time fields that name source owner, field identity, and daily point-in-time validity.
 
     Here are the source data classes available by default:
 
     1. Qlib Daily Stock Trade Data: Contains daily `$open`, `$close`, `$high`, `$low`, `$vwap`, and `$volume` fields indexed by `datetime` and `instrument`.
     2. Qlib Daily Price-Volume Derived Features: Contains daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields.
-    3. Provider/User Supplied Daily Point-in-Time Fields: May include fundamental or industry fields only when the user or provider explicitly supplies them with daily point-in-time validity.
+    3. Provider/User Supplied Daily Point-in-Time Fields: May include fundamental or industry fields only when the user or provider explicitly supplies them with source owner, field identity, and daily point-in-time validity.
 
     Do not assume turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields are available by default.
 
@@ -111,7 +111,7 @@ factor_viability_system: |-
     User has the Qlib daily A-share research data boundary:
     1. Qlib Daily Stock Trade Data: daily `$open`, `$close`, `$high`, `$low`, `$vwap`, and `$volume` fields indexed by `datetime` and `instrument`;
     2. Qlib Daily Price-Volume Derived Features: daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields;
-    3. Provider/User Supplied Daily Point-in-Time Fields: fundamental or industry fields only when the user or provider explicitly supplies them with daily point-in-time validity.
+    3. Provider/User Supplied Daily Point-in-Time Fields: fundamental or industry fields only when the user or provider explicitly supplies them with source owner, field identity, and daily point-in-time validity.
 
     Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs.
 
