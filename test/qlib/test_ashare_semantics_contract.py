@@ -48,6 +48,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     load_qlib_ashare_contract,
 )
 from rdagent.scenarios.qlib.proposal.factor_semantics import (
+    validate_qlib_factor_experiment_response,
     validate_qlib_factor_hypothesis_response,
 )
 
@@ -1571,6 +1572,64 @@ def test_rd_agent_factor_proposal_validator_uses_qlib_daily_research_data_bounda
             validate_qlib_factor_hypothesis_response(payload)
 
 
+def test_rd_agent_factor_experiment_validator_uses_qlib_daily_research_data_boundary() -> None:
+    accepted = validate_qlib_factor_experiment_response(
+        {
+            "close_vwap_reversal": {
+                "description": "[Reversal Factor] Daily Qlib A-share close-to-vwap reversal with volume confirmation.",
+                "formulation": r"factor_t = -($close_t - $vwap_t) / $vwap_t \times log(1 + $volume_t)",
+                "variables": {
+                    "$close": "Qlib registered daily close field.",
+                    "$vwap": "Qlib registered daily VWAP field.",
+                    "$volume": "Qlib registered daily volume field.",
+                },
+            }
+        }
+    )
+    assert accepted["close_vwap_reversal"]["variables"]["$close"] == "Qlib registered daily close field."
+
+    forbidden_payloads = [
+        {
+            "turnover_acceleration": {
+                "description": "[Liquidity Factor] Use turnover acceleration.",
+                "formulation": r"factor_t = turnover_t / turnover_{t-5} - 1",
+                "variables": {"turnover": "Default turnover series."},
+            }
+        },
+        {
+            "morning_vwap_momentum": {
+                "description": "[Momentum Factor] Use minute-level high-frequency VWAP.",
+                "formulation": r"factor_t = vwap_{10:30} / open - 1",
+                "variables": {"vwap_{10:30}": "Intraday minute VWAP."},
+            }
+        },
+        {
+            "consensus_revision": {
+                "description": "[Expectation Factor] Use analyst consensus expectation revisions.",
+                "formulation": r"factor_t = consensus_eps_t - consensus_eps_{t-20}",
+                "variables": {"consensus_eps": "Analyst consensus EPS expectation."},
+            }
+        },
+    ]
+    for payload in forbidden_payloads:
+        with pytest.raises(ValueError, match="Qlib daily A-share research data boundary"):
+            validate_qlib_factor_experiment_response(payload)
+
+    with pytest.raises(ValueError, match="registered daily Qlib A-share fields"):
+        validate_qlib_factor_experiment_response(
+            {
+                "ambiguous_liquidity": {
+                    "description": "[Liquidity Factor] Use broad liquidity pressure.",
+                    "formulation": r"factor_t = A_t / B_t",
+                    "variables": {
+                        "A_t": "Market activity.",
+                        "B_t": "Market baseline.",
+                    },
+                }
+            }
+        )
+
+
 def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields() -> None:
     prompt_text = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
 
@@ -1579,6 +1638,14 @@ def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields(
     )
     assert (
         "Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, "
+        "or unregistered external vendor fields as default Qlib inputs."
+    ) in prompt_text
+    assert (
+        "Every factor description, formulation, and variables map must bind the factor to Qlib registered daily "
+        "A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`)"
+    ) in prompt_text
+    assert (
+        "Do not use turnover, minute-level high-frequency data, analyst consensus expectation factors, "
         "or unregistered external vendor fields as default Qlib inputs."
     ) in prompt_text
     assert "price, volume, turnover, return, or related financial fields" not in prompt_text
