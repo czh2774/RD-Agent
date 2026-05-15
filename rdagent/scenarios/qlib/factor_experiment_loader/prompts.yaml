@@ -36,12 +36,15 @@ extract_factor_formulation_system: |-
     1. For each factor, I need its calculation formula in LaTeX format. The variable names within the formulas should not contain spaces; instead, use underscores to connect words. Ensure that the factor names within the formulas are consistent with the ones I've provided.
     2. For each factor formula, provide explanations for the variables and functions used. The explanations should be in English, and the variable and function names should match those used in the formulas.
 
-    Here are the sources of data I have:
+    The default source data boundary is Qlib daily A-share research data. Use only registered daily Qlib fields or user/provider supplied daily point-in-time fields.
 
-    1. Stock Trade Data Table: Contains information on stock trades, including daily open, close, high, low, VWAP prices, volume, and turnover.
-    2. Financial Data Table: Contains company financial statements, such as the balance sheet, income statement, and cash flow statement.
-    3. Stock Fundamental Data Table: Contains basic information about stocks, like total shares outstanding, free float shares, industry classification, market classification, etc.
-    4. High-Frequency Data: Contains price and volume of each stock at the minute level, including open, close, high, low, volume, and VWAP.
+    Here are the source data classes available by default:
+
+    1. Qlib Daily Stock Trade Data: Contains daily `$open`, `$close`, `$high`, `$low`, `$vwap`, and `$volume` fields indexed by `datetime` and `instrument`.
+    2. Qlib Daily Price-Volume Derived Features: Contains daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields.
+    3. Provider/User Supplied Daily Point-in-Time Fields: May include fundamental or industry fields only when the user or provider explicitly supplies them with daily point-in-time validity.
+
+    Do not assume minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields are available by default.
 
     Please expand the formulation to use the source data I have provided. If the number of factors exceeds the token limit, extract the formulas for as many factors as possible without exceeding the limit. Ensure to avoid syntax errors related to special characters in JSON, especially with backslashes and underscores in LaTeX.
 
@@ -97,7 +100,7 @@ classify_system: |-
 
 factor_viability_system: |-
     User has designed several factors in quant investment. Please help the user to check the viability of these factors.
-    These factors are used to build a daily frequency strategy in China A-share market.
+    These factors are used to build a daily frequency strategy in the China A-share market under the Qlib daily A-share research data boundary.
 
     User will provide a pandas dataframe like table containing following information:
     1. The name of the factor;
@@ -105,12 +108,12 @@ factor_viability_system: |-
     3. The formulation of the factor in latex format;
     4. The description to the variables and functions in the formulation of the factor.
 
-    User has several source data:
-    1. The Stock Trade Data Table containing information about stock trades, such as daily open, close, high, low, vwap prices, volume, and turnover;
-    2. The Financial Data Table containing company financial statements such as the balance sheet, income statement, and cash flow statement;
-    3. The Stock Fundamental Data Table containing basic information about stocks, like total shares outstanding, free float shares, industry classification, market classification, etc;
-    4. The high frequency data containing price and volume of each stock containing open close high low volume vwap in each minute;
-    5. The Consensus Expectations Factor containing the consensus expectations of the analysts about the future performance of the company.
+    User has the Qlib daily A-share research data boundary:
+    1. Qlib Daily Stock Trade Data: daily `$open`, `$close`, `$high`, `$low`, `$vwap`, and `$volume` fields indexed by `datetime` and `instrument`;
+    2. Qlib Daily Price-Volume Derived Features: daily features derived by Qlib Alpha158/Alpha360 handlers from the registered price and volume fields;
+    3. Provider/User Supplied Daily Point-in-Time Fields: fundamental or industry fields only when the user or provider explicitly supplies them with daily point-in-time validity.
+
+    Do not treat minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs.
 
 
     A viable factor should satisfy the following conditions:
@@ -145,7 +148,7 @@ factor_viability_system: |-
 
 factor_relevance_system: |-
     User has designed several factors in quant investment. Please help the user to check the relevance of these factors to be real quant investment factors.
-    These factors are used to build a daily frequency strategy in China A-share market.
+    These factors are used to build a daily frequency strategy in the China A-share market under the Qlib daily A-share research data boundary.
 
     User will provide a pandas dataframe like table containing following information:
     1. The name of the factor;
@@ -186,7 +189,7 @@ factor_relevance_system: |-
 
 factor_duplicate_system: |-
     User has designed several factors in quant investment. Please help the user to duplicate these factors.
-    These factors are used to build a daily frequency strategy in China A-share market.
+    These factors are used to build a daily frequency strategy in the China A-share market under the Qlib daily A-share research data boundary.
 
     User will provide a pandas dataframe like table containing following information:
     1. The name of the factor;

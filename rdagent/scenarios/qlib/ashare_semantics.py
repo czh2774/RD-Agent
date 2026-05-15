@@ -47,6 +47,13 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
     "open_cost": 0.0005,
     "close_cost": 0.0015,
 }
+QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
+QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
+QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES = (
+    "minute_level_high_frequency_data",
+    "analyst_consensus_expectation_factor",
+    "unregistered_external_vendor_fields",
+)
 QLIB_ASHARE_LABEL_PROMPT_PATHS = ("rdagent/scenarios/qlib/experiment/prompts.yaml",)
 QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
     "rdagent/scenarios/qlib/experiment/prompts.yaml",
@@ -225,6 +232,7 @@ def format_rd_agent_ashare_semantic_context(
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
     runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
+    research_data_source = _mapping(prompt_payload.get("research_data_source_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -370,6 +378,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- runtime-handoff template binding: {runtime_template_binding.get('binding_kind')}",
             f"- runtime-handoff template rule: {runtime_template_binding.get('runtime_rule')}",
             f"- runtime-handoff prompt boundary: {runtime_template_binding.get('prompt_boundary_rule')}",
+            f"- research data-source frequency: {research_data_source.get('data_frequency')}",
+            "- research data-source fields: "
+            + ", ".join(str(item) for item in research_data_source.get("primary_price_volume_fields", [])),
+            "- research data-source forbidden defaults: "
+            + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
+            f"- research data-source rule: {research_data_source.get('rdagent_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -526,6 +540,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
         "redefine_runtime_handoff_or_template_execution_kwargs",
+        "redefine_research_data_source_availability_or_imply_unregistered_sources",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -584,6 +599,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
         "runtime_handoff_template_binding_semantics",
+        "research_data_source_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -627,6 +643,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
         "runtime_handoff_template_binding_semantics",
+        "research_data_source_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1774,6 +1791,35 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
                 "pyqlib A-share contract prompt_projection_payload "
                 f"runtime_handoff_template_binding_semantics must not expose {forbidden_key}"
             )
+    research_data_source = _mapping(prompt_payload.get("research_data_source_semantics"))
+    expected_research_data_source_values = {
+        "semantic_name": "a_share_research_data_source_boundary",
+        "data_frequency": "day",
+        "source_scope": "qlib_daily_research_and_backtest_inputs",
+        "index_contract": ["datetime", "instrument"],
+        "primary_price_volume_fields": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS),
+        "handler_authority": "qlib.contrib.data.handler.Alpha158",
+        "handler360_authority": "qlib.contrib.data.handler.Alpha360",
+        "loader_authority": "qlib.contrib.data.loader.Alpha158DL",
+        "allowed_prompt_source_tables": [
+            "daily_stock_trade_data",
+            "daily_price_volume_derived_features",
+            "provider_supplied_point_in_time_fundamental_or_industry_fields",
+        ],
+        "point_in_time_rule": (
+            "non_price_volume_fields_are_allowed_only_when_user_or_provider_supplies_daily_point_in_time_data"
+        ),
+        "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
+        "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
+        "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
+        "rdagent_rule": "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources",
+    }
+    for key, expected_value in expected_research_data_source_values.items():
+        if research_data_source.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"research_data_source_semantics must preserve {key}"
+            )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
         "semantic_name",
@@ -2551,6 +2597,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "research_data_source_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
