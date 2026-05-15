@@ -181,6 +181,14 @@ QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE = "zero_max_drawdown_sets_drawdown_adj
 QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE = (
     "positive_max_drawdown_metric_fails_closed_without_reward_reinterpretation"
 )
+QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE = (
+    "rdagent_may_compute_annualized_excess_return_with_cost_over_abs_max_drawdown_as_derived_utility_not_qlib_metric"
+)
+QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD = "annualized_excess_return_with_cost"
+QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD = "information_ratio_with_cost"
+QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE = (
+    "bandit_portfolio_features_must_name_with_cost_benchmark_relative_excess_return_not_generic_arr_or_ir"
+)
 QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD = "mdd"
 QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD = "drawdown_magnitude"
 QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE = (
@@ -191,8 +199,8 @@ QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS = (
     "icir",
     "rank_ic",
     "rank_icir",
-    "arr",
-    "ir",
+    QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD,
+    QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD,
     QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
 )
@@ -583,6 +591,12 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
             f"- feedback-metric utility rule: {feedback_metric.get('derived_bandit_utility_rule')}",
+            f"- feedback-metric annualized excess return with cost field: "
+            f"{feedback_metric.get('bandit_annualized_excess_return_with_cost_field')}",
+            f"- feedback-metric information ratio with cost field: "
+            f"{feedback_metric.get('bandit_information_ratio_with_cost_field')}",
+            f"- feedback-metric portfolio feature field rule: "
+            f"{feedback_metric.get('bandit_portfolio_feature_field_rule')}",
             f"- feedback-metric max drawdown path: {feedback_metric.get('bandit_max_drawdown_metric_path')}",
             f"- feedback-metric max drawdown sign rule: {feedback_metric.get('bandit_max_drawdown_sign_rule')}",
             f"- feedback-metric max drawdown zero rule: {feedback_metric.get('bandit_max_drawdown_zero_rule')}",
@@ -1985,6 +1999,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_invalid_failure",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
+        "bandit_annualized_excess_return_with_cost_field",
+        "bandit_information_ratio_with_cost_field",
+        "bandit_portfolio_feature_field_rule",
         "bandit_max_drawdown_metric_path",
         "bandit_max_drawdown_sign_rule",
         "bandit_max_drawdown_zero_rule",
@@ -2022,7 +2039,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
-        "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
+        "derived_bandit_utility_rule": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
+        "bandit_annualized_excess_return_with_cost_field": QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD,
+        "bandit_information_ratio_with_cost_field": QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD,
+        "bandit_portfolio_feature_field_rule": QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE,
         "bandit_max_drawdown_metric_path": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH,
         "bandit_max_drawdown_sign_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE,
         "bandit_max_drawdown_zero_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE,

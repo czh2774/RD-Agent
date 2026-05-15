@@ -13,10 +13,13 @@ import pytest
 
 import rdagent.scenarios.qlib.ashare_semantics as rdagent_ashare_semantics
 from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD,
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
     QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
     QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE,
     QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS,
+    QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD,
     QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH,
     QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE,
     QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE,
@@ -25,6 +28,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE,
     QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD,
     QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
     QLIB_ASHARE_BANDIT_REWARD_RULE,
@@ -493,7 +497,12 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
-        "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
+        "derived_bandit_utility_rule": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
+        "bandit_annualized_excess_return_with_cost_field": (
+            QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD
+        ),
+        "bandit_information_ratio_with_cost_field": QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD,
+        "bandit_portfolio_feature_field_rule": QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE,
         "bandit_max_drawdown_metric_path": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH,
         "bandit_max_drawdown_sign_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE,
         "bandit_max_drawdown_zero_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE,
@@ -1565,6 +1574,13 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE == feedback["bandit_metric_extraction_rule"]
     assert QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE == feedback["bandit_metric_missing_failure"]
     assert QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE == feedback["bandit_metric_invalid_failure"]
+    assert QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE == feedback["derived_bandit_utility_rule"]
+    assert (
+        QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD
+        == feedback["bandit_annualized_excess_return_with_cost_field"]
+    )
+    assert QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD == feedback["bandit_information_ratio_with_cost_field"]
+    assert QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE == feedback["bandit_portfolio_feature_field_rule"]
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH == feedback["bandit_max_drawdown_metric_path"]
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE == feedback["bandit_max_drawdown_sign_rule"]
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE == feedback["bandit_max_drawdown_zero_rule"]
@@ -1603,6 +1619,13 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS" in bandit_source
     assert "QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE" in bandit_source
     assert "QlibAshareBanditMetricError" in bandit_source
+    assert "annualized_excess_return_with_cost" in bandit_source
+    assert "information_ratio_with_cost" in bandit_source
+    assert "self.arr" not in bandit_source
+    assert "self.ir" not in bandit_source
+    assert "    arr: float" not in bandit_source
+    assert "    ir: float" not in bandit_source
+    assert "arr=" not in bandit_source
     assert "drawdown_magnitude" in bandit_source
     assert "self.drawdown_magnitude" in bandit_source
     assert "result.get(" not in bandit_source
@@ -2377,6 +2400,8 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     metrics = extract_metrics_from_experiment(experiment)
 
     assert isinstance(metrics, Metrics)
+    assert metrics.annualized_excess_return_with_cost == 0.2
+    assert metrics.information_ratio_with_cost == 1.3
     assert metrics.mdd == -0.1
     assert metrics.drawdown_magnitude == 0.1
     assert abs(metrics.as_vector()[6] - 0.1) < 1e-12
@@ -3620,6 +3645,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_bandit_drawdown_magnitude
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_bandit_portfolio_feature_field_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "bandit_portfolio_feature_field_rule"
+    ] = "bandit_portfolio_features_may_use_arr_and_ir_aliases"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_bandit_reward_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"][
@@ -4269,10 +4304,15 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"feedback-metric bandit invalid failure: {QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE}" in text
     assert f"feedback-metric paths: {', '.join(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)}" in text
     assert f"feedback-metric bandit utility: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME}" in text
+    assert f"feedback-metric utility rule: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE}" in text
     assert (
-        "feedback-metric utility rule: "
-        "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric"
+        f"feedback-metric annualized excess return with cost field: "
+        f"{QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD}"
     ) in text
+    assert (
+        f"feedback-metric information ratio with cost field: " f"{QLIB_ASHARE_BANDIT_INFORMATION_RATIO_WITH_COST_FIELD}"
+    ) in text
+    assert f"feedback-metric portfolio feature field rule: {QLIB_ASHARE_BANDIT_PORTFOLIO_FEATURE_FIELD_RULE}" in text
     assert f"feedback-metric max drawdown path: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH}" in text
     assert f"feedback-metric max drawdown sign rule: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE}" in text
     assert f"feedback-metric max drawdown zero rule: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE}" in text
