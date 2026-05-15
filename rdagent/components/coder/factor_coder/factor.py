@@ -29,6 +29,7 @@ class FactorTask(CoSTEERTask):
         variables: dict = {},
         resource: str = None,
         factor_implementation: bool = False,
+        source_data_boundary: str | None = None,
         **kwargs,
     ) -> None:
         self.factor_name = (
@@ -38,6 +39,7 @@ class FactorTask(CoSTEERTask):
         self.variables = variables
         self.factor_resources = resource
         self.factor_implementation = factor_implementation
+        self.source_data_boundary = source_data_boundary
         super().__init__(name=factor_name, description=factor_description, *args, **kwargs)
 
     @property
@@ -45,26 +47,34 @@ class FactorTask(CoSTEERTask):
         """for compatibility"""
         return self.description
 
+    def _source_data_boundary_section(self) -> str:
+        if not self.source_data_boundary:
+            return ""
+        return f"\nsource_data_boundary: {self.source_data_boundary}"
+
     def get_task_information(self):
         return f"""factor_name: {self.factor_name}
 factor_description: {self.factor_description}
 factor_formulation: {self.factor_formulation}
-variables: {str(self.variables)}"""
+variables: {str(self.variables)}{self._source_data_boundary_section()}"""
 
     def get_task_brief_information(self):
         return f"""factor_name: {self.factor_name}
 factor_description: {self.factor_description}
 factor_formulation: {self.factor_formulation}
-variables: {str(self.variables)}"""
+variables: {str(self.variables)}{self._source_data_boundary_section()}"""
 
     def get_task_information_and_implementation_result(self):
-        return {
+        task_information = {
             "factor_name": self.factor_name,
             "factor_description": self.factor_description,
             "factor_formulation": self.factor_formulation,
             "variables": str(self.variables),
             "factor_implementation": str(self.factor_implementation),
         }
+        if self.source_data_boundary:
+            task_information["source_data_boundary"] = self.source_data_boundary
+        return task_information
 
     @staticmethod
     def from_dict(dict):

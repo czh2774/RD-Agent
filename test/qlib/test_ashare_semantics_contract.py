@@ -48,6 +48,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     load_qlib_ashare_contract,
 )
 from rdagent.scenarios.qlib.proposal.factor_semantics import (
+    build_qlib_ashare_factor_task_source_boundary,
     validate_qlib_factor_experiment_response,
     validate_qlib_factor_hypothesis_response,
 )
@@ -1628,6 +1629,37 @@ def test_rd_agent_factor_experiment_validator_uses_qlib_daily_research_data_boun
                 }
             }
         )
+
+
+def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder() -> None:
+    boundary = build_qlib_ashare_factor_task_source_boundary()
+    assert "Qlib daily A-share research data boundary" in boundary
+    for field in QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS:
+        assert field in boundary
+    for forbidden_source in QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES:
+        assert forbidden_source in boundary
+    assert "turnover" in boundary
+
+    factor_task_source = (REPO_ROOT / "rdagent/components/coder/factor_coder/factor.py").read_text()
+    assert "source_data_boundary" in factor_task_source
+    assert "source_data_boundary: {self.source_data_boundary}" in factor_task_source
+    assert '"source_data_boundary"] = self.source_data_boundary' in factor_task_source
+
+    proposal_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/factor_proposal.py").read_text()
+    assert "build_qlib_ashare_factor_task_source_boundary" in proposal_source
+    assert "source_data_boundary=source_data_boundary" in proposal_source
+
+    json_loader_source = (REPO_ROOT / "rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py").read_text()
+    assert "build_qlib_ashare_factor_task_source_boundary" in json_loader_source
+    assert "source_data_boundary=source_data_boundary" in json_loader_source
+
+    coder_prompt = (REPO_ROOT / "rdagent/components/coder/factor_coder/prompts.yaml").read_text()
+    assert "{{ factor_information_str }}" in coder_prompt
+    assert "{{ factor_information }}" in coder_prompt
+
+    workflow = (REPO_ROOT / ".github/workflows/internal_ashare_semantics.yml").read_text()
+    assert "rdagent/components/coder/factor_coder/factor.py" in workflow
+    assert "rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py" in workflow
 
 
 def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields() -> None:
