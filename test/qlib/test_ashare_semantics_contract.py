@@ -29,6 +29,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
     QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
@@ -332,6 +333,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
         "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_model_evaluator_prompt_boundary_rule": QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
+        "rdagent_model_formulation_prompt_boundary_rule": QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1847,6 +1849,7 @@ def test_rd_agent_model_coder_prompt_treats_qlib_model_output_boundary_as_author
 
     assert QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE in boundary
     assert QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE in boundary
     assert "model_output_boundary" in model_prompt
     assert "non-bypassable implementation boundary" in model_prompt
     assert "overrides generic model-type examples" in model_prompt
@@ -1854,6 +1857,23 @@ def test_rd_agent_model_coder_prompt_treats_qlib_model_output_boundary_as_author
     assert "do not introduce Graph or XGBoost code paths when that boundary forbids them" in model_prompt
     assert "Scenario contracts may narrow generic model families through model_output_boundary." in model_task_source
     assert "TimesSeries" not in model_task_source
+
+
+def test_rd_agent_model_formulation_prompt_uses_qlib_prediction_signal_boundary() -> None:
+    model_prompt = (REPO_ROOT / "rdagent/components/coder/model_coder/prompts.yaml").read_text()
+    formulation_prompt = _read_prompt_block(model_prompt, "extract_model_formulation_system")
+
+    assert "model_output_boundary" in formulation_prompt
+    assert "treat it as the formulation authority" in formulation_prompt
+    assert r"\hat{y}_{t,i}" in formulation_prompt
+    assert "Qlib prediction signal score for instrument `i` at datetime `t`" in formulation_prompt
+    assert "saved as the `score` column in `pred.pkl`" in formulation_prompt
+    assert "indexed by `datetime` and `instrument`" in formulation_prompt
+    assert "Do not describe Qlib A-share predictions as graph-node outputs" in formulation_prompt
+    assert "labels outside Qlib-declared LABEL0" in formulation_prompt
+    assert "use only the boundary-declared Tabular or TimeSeries model type" in formulation_prompt
+    assert 'must be "Tabular" or "TimeSeries"' in formulation_prompt
+    assert "The predicted output for node u" not in formulation_prompt
 
 
 def test_rd_agent_model_evaluator_prompts_fail_closed_on_qlib_model_output_boundary() -> None:
@@ -2809,6 +2829,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_evaluator_prompt_bo
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_formulation_prompt_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_formulation_prompt_boundary_rule"
+    ] = "rdagent_qlib_model_formulation_prompts_may_describe_qlib_predictions_as_graph_node_outputs"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3509,6 +3539,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     ) in text
     assert (
         "prediction-signal evaluator prompt boundary: " f"{QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE}"
+    ) in text
+    assert (
+        "prediction-signal formulation prompt boundary: " f"{QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE}"
     ) in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text

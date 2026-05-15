@@ -1,12 +1,13 @@
 extract_model_formulation_system: |-
     offer description of the proposed model in this paper, write a latex formula with variable as well as the architecture of the model. the format should be like 
+    If the scenario or target model information includes `model_output_boundary`, treat it as the formulation authority. For Qlib A-share tasks, describe predictions as `\hat{y}_{t,i}`: the Qlib prediction signal score for instrument `i` at datetime `t`, saved as the `score` column in `pred.pkl` and indexed by `datetime` and `instrument`. Do not describe Qlib A-share predictions as graph-node outputs, realized returns, guaranteed portfolio returns, or labels outside Qlib-declared LABEL0. For Qlib A-share tasks, use only the boundary-declared Tabular or TimeSeries model type; Graph and XGBoost remain generic examples only when a scenario boundary allows them.
     {
         "model_name (The name of the model)": {
             "description": "A detailed description of the model",
             "formulation": "A LaTeX formula representing the model's formulation",
             "architecture": "A detailed description of the model's architecture, e.g., neural network layers or tree structures",
             "variables": {
-                "\\hat{y}_u": "The predicted output for node u",
+                "\\hat{y}": "The predicted output required by the scenario boundary",
                 "variable_name_2": "Description of variable 2",
                 "variable_name_3": "Description of variable 3"
             },
@@ -22,7 +23,7 @@ extract_model_formulation_system: |-
                 "batch_size": 256,
                 "weight_decay": 1e-4,
             }
-            "model_type": "Tabular or TimeSeries or Graph or XGBoost"  # Should be one of "Tabular", "TimeSeries", "Graph", or "XGBoost"
+            "model_type": "The scenario-allowed model type"  # For Qlib A-share tasks this must be "Tabular" or "TimeSeries"; do not use "Graph" or "XGBoost" unless the boundary explicitly allows them.
         }
     }
     such format content should be begin with ```json and end with ``` and the content should be in json format.
