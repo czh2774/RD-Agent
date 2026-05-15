@@ -132,6 +132,7 @@ def format_rd_agent_ashare_semantic_context(
     instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
+    execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
@@ -169,6 +170,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
             f"- suspension limit flags: {suspension_tradability.get('limit_flag_projection')}",
+            f"- execution-price authority: pyqlib ({execution_price.get('runtime_authority')})",
+            f"- execution-price field: {execution_price.get('execution_price_field')}",
+            f"- execution frequency: {execution_price.get('execution_frequency')}",
+            f"- intraday execution rule: {execution_price.get('intraday_execution_rule')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
@@ -256,6 +261,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_instrument_identity_or_board_mapping",
         "redefine_transaction_cost_model",
         "redefine_suspension_or_tradability_rules",
+        "redefine_execution_price_or_frequency",
         "redefine_trade_unit_or_position_type",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
@@ -310,6 +316,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "instrument_identity_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
+        "execution_price_semantics",
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -544,6 +551,50 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "pyqlib A-share contract prompt_projection_payload "
             "suspension_tradability_semantics must forbid RD-Agent redefinition"
         )
+    execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
+    for key in (
+        "semantic_name",
+        "qlib_parameter",
+        "execution_price_field",
+        "execution_frequency",
+        "price_source_authority",
+        "intraday_execution_rule",
+        "candidate_research_rule",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in execution_price:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload execution_price_semantics must include {key}"
+            )
+    if execution_price.get("semantic_name") != "a_share_daily_close_execution_price":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must describe A-share close-price execution"
+        )
+    if execution_price.get("qlib_parameter") != "deal_price":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must bind Qlib deal_price"
+        )
+    if execution_price.get("execution_price_field") != "$close":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must use Qlib close field"
+        )
+    if execution_price.get("execution_frequency") != "daily_bar_backtest":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must stay daily-bar scoped"
+        )
+    if execution_price.get("intraday_execution_rule") != "not_intraday_or_auction_simulation":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must not imply intraday fills"
+        )
+    if execution_price.get("runtime_authority") != "qlib.backtest.ashare_semantics.joinquant_ashare_exchange_kwargs":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must name Qlib runtime authority"
+        )
+    if execution_price.get("rdagent_rule") != "describe_only_do_not_redefine_execution_price_or_frequency":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload execution_price_semantics must forbid RD-Agent redefinition"
+        )
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     for key in (
         "limit_threshold",
@@ -727,6 +778,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "settlement_rule",
         "same_day_sell_policy",
         "suspension_tradability_semantics",
+        "execution_price_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
