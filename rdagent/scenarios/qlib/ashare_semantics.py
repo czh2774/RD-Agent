@@ -45,28 +45,36 @@ def build_rd_agent_ashare_semantic_context(
         dict(contract) if contract is not None else load_qlib_ashare_contract()
     )
     relationship = _mapping(qlib_contract.get("relationship"))
+    semantic_boundary = _mapping(qlib_contract.get("semantic_boundary"))
+    failure_semantics = _mapping(qlib_contract.get("failure_semantics"))
+    evidence_contract = _mapping(qlib_contract.get("evidence_contract"))
+    projection_contract = _mapping(qlib_contract.get("projection_contract"))
     return {
         "schema_version": "rdagent_ashare_semantic_context.v1",
         "context_id": "rdagent_consumes_qlib_joinquant_ashare_semantics_v1",
         "status": "active",
         "rdagent_component": RDAGENT_ASHARE_CONSUMER_COMPONENT,
         "qlib_contract_id": qlib_contract["contract_id"],
+        "qlib_contract_schema_version": qlib_contract["schema_version"],
+        "qlib_contract_fingerprint": evidence_contract["semantic_fingerprint"],
         "qlib_source_component": qlib_contract["source_component"],
         "relationship_boundary": {
             "qlib_role": relationship["qlib_role"],
             "rdagent_role": "research_generation_and_evaluation_context_consumer",
             "semantic_authority": "pyqlib_contract",
             "failure_semantics": "fail_closed_on_missing_or_malformed_pyqlib_ashare_contract",
-            "rdagent_may": [
-                "render A-share constraints into Qlib research prompts",
-                "validate generated factors and models against Qlib contract fields",
-                "pass Qlib-owned backtest kwargs to runtime execution surfaces",
-            ],
+            "authority_rule": semantic_boundary["authority_rule"],
+            "consumer_rule": semantic_boundary["consumer_rule"],
+            "rdagent_may": list(semantic_boundary["rdagent_allowed_actions"]),
+            "rdagent_forbidden_actions": list(semantic_boundary["rdagent_forbidden_actions"]),
             "rdagent_must_not_redefine": list(qlib_contract["rdagent_must_not_redefine"]),
         },
+        "failure_contract": deepcopy(failure_semantics),
+        "qlib_evidence_contract": deepcopy(evidence_contract),
+        "prompt_projection": deepcopy(projection_contract),
         "prompt_rules": [
             "Use A-share market semantics only from qlib.backtest.ashare_semantics.",
-            "Do not invent trade unit, position, price-limit, or cost values in prompts.",
+            "Render only the Qlib-declared prompt projection; do not expose raw runtime kwargs as prompt authority.",
             "Treat generated factors and models as candidates until Qlib execution and downstream governance evidence exist.",
         ],
         "qlib_market_semantics": deepcopy(qlib_contract["market_semantics"]),
@@ -85,18 +93,25 @@ def format_rd_agent_ashare_semantic_context(
         payload = build_rd_agent_ashare_semantic_context(context)
     boundary = _mapping(payload.get("relationship_boundary"))
     market = _mapping(payload.get("qlib_market_semantics"))
+    projection = _mapping(payload.get("prompt_projection"))
+    forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
     return "\n".join(
         [
             "A-share Qlib semantic relationship:",
             f"- status: {payload['status']}",
             f"- qlib_contract_id: {payload['qlib_contract_id']}",
+            f"- qlib_contract_schema_version: {payload['qlib_contract_schema_version']}",
+            f"- qlib_contract_fingerprint: {payload['qlib_contract_fingerprint']}",
             f"- qlib_source_component: {payload['qlib_source_component']}",
             f"- rd-agent role: {boundary['rdagent_role']}",
             f"- qlib role: {boundary['qlib_role']}",
+            f"- authority rule: {boundary['authority_rule']}",
+            f"- consumer rule: {boundary['consumer_rule']}",
             f"- market: {market.get('market')} / region={market.get('region')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             "- RD-Agent must not redefine: " + ", ".join(str(item) for item in boundary["rdagent_must_not_redefine"]),
+            "- prompt projection forbids: " + ", ".join(str(item) for item in forbidden_prompt_fields),
             f"- failure_semantics: {boundary['failure_semantics']}",
         ]
     )
@@ -126,6 +141,7 @@ def append_ashare_semantic_context(runtime_environment: str) -> str:
 
 def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     expected = {
+        "schema_version": "qlib_ashare_semantic_contract.v1",
         "contract_id": REQUIRED_QLIB_CONTRACT_ID,
         "source_component": QLIB_ASHARE_AUTHORITY_COMPONENT,
         "consumer_component": RDAGENT_ASHARE_CONSUMER_COMPONENT,
@@ -148,6 +164,85 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract must fail closed when the relationship contract is missing"
         )
+
+    semantic_boundary = _mapping(contract.get("semantic_boundary"))
+    if semantic_boundary.get("authority_component") != QLIB_ASHARE_AUTHORITY_COMPONENT:
+        raise QlibAshareSemanticContractError("pyqlib A-share contract semantic_boundary must name Qlib authority")
+    if semantic_boundary.get("consumer_component") != RDAGENT_ASHARE_CONSUMER_COMPONENT:
+        raise QlibAshareSemanticContractError("pyqlib A-share contract semantic_boundary must name RD-Agent consumer")
+    for key in ("authority_rule", "consumer_rule"):
+        if not semantic_boundary.get(key):
+            raise QlibAshareSemanticContractError(f"pyqlib A-share contract semantic_boundary must include {key}")
+    allowed_actions = _string_list(semantic_boundary.get("rdagent_allowed_actions"))
+    forbidden_actions = _string_list(semantic_boundary.get("rdagent_forbidden_actions"))
+    for action in (
+        "render_contract_projection_in_research_context",
+        "carry_contract_id_schema_version_and_fingerprint_into_generated_evidence",
+        "fail_closed_when_contract_is_missing_malformed_or_unsupported",
+    ):
+        if action not in allowed_actions:
+            raise QlibAshareSemanticContractError(f"pyqlib A-share contract must allow RD-Agent action {action}")
+    for action in (
+        "redefine_trade_unit_or_position_type",
+        "redefine_cost_model_or_exchange_kwargs",
+        "treat_research_prompt_projection_as_backtest_authority",
+        "claim_a_share_alignment_without_qlib_contract_fingerprint",
+    ):
+        if action not in forbidden_actions:
+            raise QlibAshareSemanticContractError(f"pyqlib A-share contract must forbid RD-Agent action {action}")
+
+    failure_semantics = _mapping(contract.get("failure_semantics"))
+    for key in (
+        "missing_contract",
+        "unsupported_schema_version",
+        "missing_required_field",
+        "malformed_contract",
+        "runtime_projection_drift",
+        "claim_without_evidence_fingerprint",
+    ):
+        if failure_semantics.get(key) != "fail_closed":
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract failure_semantics must set {key} to fail_closed"
+            )
+
+    evidence_contract = _mapping(contract.get("evidence_contract"))
+    fingerprint = evidence_contract.get("semantic_fingerprint")
+    if not _is_sha256_hex(fingerprint):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract evidence_contract must include a sha256 semantic_fingerprint"
+        )
+    if evidence_contract.get("fingerprint_algorithm") != "sha256_json_canonical_v1":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract evidence_contract must declare sha256_json_canonical_v1"
+        )
+    required_evidence_fields = _string_list(evidence_contract.get("rdagent_required_evidence_fields"))
+    for key in (
+        "qlib_contract_id",
+        "qlib_contract_schema_version",
+        "qlib_contract_fingerprint",
+        "qlib_source_component",
+        "qlib_semantic_authority",
+    ):
+        if key not in required_evidence_fields:
+            raise QlibAshareSemanticContractError(f"pyqlib A-share contract evidence_contract must require {key}")
+
+    projection_contract = _mapping(contract.get("projection_contract"))
+    prompt_projection_fields = _string_list(projection_contract.get("rdagent_prompt_projection_fields"))
+    prompt_forbidden_fields = _string_list(projection_contract.get("rdagent_prompt_forbidden_fields"))
+    if "evidence_contract.semantic_fingerprint" not in prompt_projection_fields:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract projection_contract must project the semantic fingerprint"
+        )
+    for key in (
+        "runtime_surfaces.policy_defaults",
+        "runtime_surfaces.exchange_kwargs",
+        "runtime_surfaces.backtest_kwargs",
+        "market_semantics.cost_model",
+    ):
+        if key not in prompt_forbidden_fields:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract projection_contract must forbid prompt field {key}"
+            )
 
     market = _mapping(contract.get("market_semantics"))
     for key in (
@@ -178,3 +273,13 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise QlibAshareSemanticContractError("pyqlib A-share contract must use string-list semantic fields")
+    return list(value)
+
+
+def _is_sha256_hex(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
