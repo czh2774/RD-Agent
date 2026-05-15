@@ -19,6 +19,8 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
+    QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
+    QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES,
     QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS,
@@ -40,6 +42,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_EVALUATOR_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS,
     QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_FORMULATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
@@ -471,10 +474,13 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "bandit_metric_paths": list(QLIB_ASHARE_BANDIT_METRIC_PATHS),
         "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
         "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
+        "first_round_decision_rule": QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric",
         "forbidden_metric_aliases": ["sharpe", "Sharpe"],
+        "forbidden_first_round_success_proxies": list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES),
         "prompt_metric_wording_rule": "describe_exact_qlib_metric_paths_not_generic_return_sharpe_or_and_so_on",
+        "rdagent_model_feedback_prompt_boundary_rule": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE,
         "rdagent_source_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS),
         "rdagent_rule": "consume_exact_qlib_metric_paths_and_label_derived_bandit_utility_as_non_qlib_metric",
     }
@@ -1527,7 +1533,13 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS) == feedback["feedback_metric_paths"]
     assert list(QLIB_ASHARE_BANDIT_METRIC_PATHS) == feedback["bandit_metric_paths"]
     assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC == feedback["feedback_primary_metric"]
+    assert QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE == feedback["first_round_decision_rule"]
+    assert (
+        list(QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES)
+        == feedback["forbidden_first_round_success_proxies"]
+    )
     assert QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME == feedback["derived_bandit_utility_name"]
+    assert QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE == feedback["rdagent_model_feedback_prompt_boundary_rule"]
     assert list(QLIB_ASHARE_UI_SELECTED_METRICS) == [
         "IC",
         *portfolio["rdagent_ui_metric_paths"],
@@ -1554,6 +1566,9 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "drawdown_adjusted_return" in bandit_source
     assert "sharpe" not in bandit_source.lower()
     assert "Sharpe" not in ui_source
+    for forbidden_proxy in QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES:
+        assert forbidden_proxy not in prompts_source
+    assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC in prompts_source
     assert "QLIB_SELECTED_METRICS = list(QLIB_ASHARE_UI_SELECTED_METRICS)" in ui_source
     for path in QLIB_ASHARE_PROMPT_METRIC_PATHS:
         assert path in prompts_source
@@ -3463,6 +3478,26 @@ def test_malformed_qlib_prompt_projection_with_mutable_feedback_primary_metric_f
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_first_round_decision_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "first_round_decision_rule"
+    ] = "positive_icir_is_enough_for_first_round_success"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_missing_first_round_forbidden_proxy_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"]["forbidden_first_round_success_proxies"] = [
+        "performance is not too negative"
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_feedback_derived_utility_alias_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"]["derived_bandit_utility_name"] = "sharpe"
@@ -4096,6 +4131,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     ) in text
     assert "feedback-metric authority: pyqlib (qlib.workflow.record_temp.PortAnaRecord)" in text
     assert f"feedback-metric primary: {QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC}" in text
+    assert f"feedback-metric first-round decision rule: {QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE}" in text
     assert f"feedback-metric paths: {', '.join(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)}" in text
     assert f"feedback-metric bandit utility: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME}" in text
     assert (
@@ -4103,6 +4139,11 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "rdagent_may_compute_arr_over_abs_max_drawdown_as_derived_utility_not_qlib_metric"
     ) in text
     assert "feedback-metric forbidden aliases: sharpe, Sharpe" in text
+    assert (
+        "feedback-metric forbidden first-round success proxies: "
+        + ", ".join(str(item) for item in QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES)
+    ) in text
+    assert f"feedback-metric model prompt boundary: {QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_BOUNDARY_RULE}" in text
     assert "benchmark-return authority: pyqlib (qlib.backtest.report.PortfolioMetrics._cal_benchmark)" in text
     assert "benchmark-return default: SH000300" in text
     assert "benchmark-return field: $close/Ref($close,1)-1" in text
