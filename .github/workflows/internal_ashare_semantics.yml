@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "rdagent/components/coder/factor_coder/factor.py"
+      - "rdagent/components/coder/factor_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
@@ -29,6 +30,7 @@ on:
     branches: [main]
     paths:
       - "rdagent/components/coder/factor_coder/factor.py"
+      - "rdagent/components/coder/factor_coder/prompts.yaml"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
       - "rdagent/scenarios/qlib/developer/feedback.py"
       - "rdagent/scenarios/qlib/experiment/factor_experiment.py"
