@@ -130,6 +130,7 @@ def format_rd_agent_ashare_semantic_context(
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
     instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
+    universe_membership = _mapping(prompt_payload.get("universe_membership_semantics"))
     trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
@@ -164,6 +165,11 @@ def format_rd_agent_ashare_semantic_context(
                 for suffix, prefix in sorted(_mapping(instrument_identity.get("accepted_provider_suffixes")).items())
             ),
             f"- board identity authority: pyqlib ({instrument_identity.get('board_classification_authority')})",
+            f"- universe membership authority: pyqlib ({universe_membership.get('instrument_provider_authority')})",
+            f"- universe market rule: {universe_membership.get('market_universe_rule')}",
+            f"- universe membership window rule: {universe_membership.get('membership_window_rule')}",
+            f"- universe filter pipe rule: {universe_membership.get('filter_pipe_rule')}",
+            f"- universe survivorship rule: {universe_membership.get('survivorship_rule')}",
             f"- trading-calendar authority: pyqlib ({trading_calendar.get('calendar_provider_authority')})",
             f"- trading-calendar locator: pyqlib ({trading_calendar.get('calendar_locator_authority')})",
             f"- trading-calendar frequency: {trading_calendar.get('calendar_frequency')}",
@@ -290,6 +296,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must allow RD-Agent action {action}")
     for action in (
         "redefine_instrument_identity_or_board_mapping",
+        "redefine_universe_membership_or_instrument_filtering",
         "redefine_trading_calendar_or_data_frequency",
         "redefine_transaction_cost_model",
         "redefine_suspension_or_tradability_rules",
@@ -352,6 +359,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         )
     for key in (
         "instrument_identity_semantics",
+        "universe_membership_semantics",
         "trading_calendar_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
@@ -495,6 +503,47 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must forbid RD-Agent redefinition"
         )
+    universe_membership = _mapping(prompt_payload.get("universe_membership_semantics"))
+    for key in (
+        "semantic_name",
+        "membership_input",
+        "instrument_provider_authority",
+        "local_provider_authority",
+        "exchange_codes_authority",
+        "market_universe_rule",
+        "membership_window_rule",
+        "calendar_boundary_rule",
+        "filter_pipe_rule",
+        "as_list_rule",
+        "static_universe_rule",
+        "survivorship_rule",
+        "rdagent_rule",
+    ):
+        if key not in universe_membership:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload universe_membership_semantics must include {key}"
+            )
+    expected_universe_values = {
+        "semantic_name": "a_share_universe_membership",
+        "membership_input": "Exchange.codes_or_D.instruments_market",
+        "instrument_provider_authority": "qlib.data.data.InstrumentProvider.list_instruments",
+        "local_provider_authority": "qlib.data.data.LocalInstrumentProvider.list_instruments",
+        "exchange_codes_authority": "qlib.backtest.exchange.Exchange.__init__",
+        "market_universe_rule": "string_codes_are_resolved_by_qlib_D_instruments",
+        "membership_window_rule": "instrument_start_end_spans_are_clipped_to_requested_calendar_window",
+        "calendar_boundary_rule": "start_end_defaults_and_membership_filtering_use_qlib_calendar_boundaries",
+        "filter_pipe_rule": "qlib_instrument_filter_pipe_is_applied_after_calendar_window_clipping",
+        "as_list_rule": "as_list_returns_only_instruments_with_nonempty_effective_spans",
+        "static_universe_rule": "rdagent_must_not_treat_all_a_or_index_universe_as_static_without_qlib_membership_spans",
+        "survivorship_rule": "membership_must_remain_point_in_time_by_qlib_instrument_spans_and_filters",
+        "rdagent_rule": "describe_only_do_not_redefine_universe_membership_or_filters",
+    }
+    for key, expected_value in expected_universe_values.items():
+        if universe_membership.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"universe_membership_semantics must preserve {key}"
+            )
     trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
     for key in (
         "semantic_name",
@@ -1227,7 +1276,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "settlement_rule",
         "same_day_sell_policy",
         "data_frequency",
+        "instrument_identity_semantics",
+        "universe_membership_semantics",
         "trading_calendar_semantics",
+        "transaction_cost_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",

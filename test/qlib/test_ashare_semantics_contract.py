@@ -29,7 +29,7 @@ def _valid_contract() -> dict[str, Any]:
             "rdagent_role": "research_candidate_generation_context_consumer",
             "relationship_rule": (
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
-                "but it must not redefine trading-calendar/data-frequency, trade unit, position, execution-price, "
+                "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
                 "suspension/tradability, price-limit, settlement, cash/shorting, liquidity/capacity, or cost semantics."
             ),
@@ -48,6 +48,7 @@ def _valid_contract() -> dict[str, Any]:
             ],
             "rdagent_forbidden_actions": [
                 "redefine_instrument_identity_or_board_mapping",
+                "redefine_universe_membership_or_instrument_filtering",
                 "redefine_trading_calendar_or_data_frequency",
                 "redefine_transaction_cost_model",
                 "redefine_suspension_or_tradability_rules",
@@ -79,6 +80,7 @@ def _valid_contract() -> dict[str, Any]:
                 "schema_version",
                 "market_semantics",
                 "runtime_surfaces",
+                "universe_membership_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -107,6 +109,7 @@ def _valid_contract() -> dict[str, Any]:
                 "market_semantics.limit_threshold",
                 "market_semantics.authoritative_limit_fields",
                 "instrument_identity_semantics",
+                "universe_membership_semantics",
                 "trading_calendar_semantics",
                 "transaction_cost_semantics",
                 "suspension_tradability_semantics",
@@ -192,6 +195,23 @@ def _valid_contract() -> dict[str, Any]:
                     "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.limit_threshold_for_instrument"
                 ),
                 "rdagent_rule": "describe_only_do_not_redefine_instrument_or_board_identity",
+            },
+            "universe_membership_semantics": {
+                "semantic_name": "a_share_universe_membership",
+                "membership_input": "Exchange.codes_or_D.instruments_market",
+                "instrument_provider_authority": "qlib.data.data.InstrumentProvider.list_instruments",
+                "local_provider_authority": "qlib.data.data.LocalInstrumentProvider.list_instruments",
+                "exchange_codes_authority": "qlib.backtest.exchange.Exchange.__init__",
+                "market_universe_rule": "string_codes_are_resolved_by_qlib_D_instruments",
+                "membership_window_rule": "instrument_start_end_spans_are_clipped_to_requested_calendar_window",
+                "calendar_boundary_rule": "start_end_defaults_and_membership_filtering_use_qlib_calendar_boundaries",
+                "filter_pipe_rule": "qlib_instrument_filter_pipe_is_applied_after_calendar_window_clipping",
+                "as_list_rule": "as_list_returns_only_instruments_with_nonempty_effective_spans",
+                "static_universe_rule": (
+                    "rdagent_must_not_treat_all_a_or_index_universe_as_static_without_qlib_membership_spans"
+                ),
+                "survivorship_rule": "membership_must_remain_point_in_time_by_qlib_instrument_spans_and_filters",
+                "rdagent_rule": "describe_only_do_not_redefine_universe_membership_or_filters",
             },
             "trading_calendar_semantics": {
                 "semantic_name": "a_share_daily_trading_calendar",
@@ -407,6 +427,7 @@ def _valid_contract() -> dict[str, Any]:
         },
         "rdagent_must_not_redefine": [
             "instrument_identity_semantics",
+            "universe_membership_semantics",
             "trading_calendar_semantics",
             "transaction_cost_semantics",
             "suspension_tradability_semantics",
@@ -463,6 +484,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert boundary["authority_rule"] == "Qlib owns executable JoinQuant-compatible A-share backtest semantics."
     assert "render_contract_projection_in_research_context" in boundary["rdagent_may"]
     assert "redefine_instrument_identity_or_board_mapping" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_universe_membership_or_instrument_filtering" in boundary["rdagent_forbidden_actions"]
     assert "redefine_trading_calendar_or_data_frequency" in boundary["rdagent_forbidden_actions"]
     assert "redefine_transaction_cost_model" in boundary["rdagent_forbidden_actions"]
     assert "redefine_suspension_or_tradability_rules" in boundary["rdagent_forbidden_actions"]
@@ -476,6 +498,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "treat_research_prompt_projection_as_backtest_authority" in boundary["rdagent_forbidden_actions"]
     assert boundary["rdagent_must_not_redefine"] == [
         "instrument_identity_semantics",
+        "universe_membership_semantics",
         "trading_calendar_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
@@ -506,6 +529,22 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["instrument_identity_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_instrument_or_board_identity"
+    )
+    assert (
+        context["prompt_projection_payload"]["universe_membership_semantics"]["instrument_provider_authority"]
+        == "qlib.data.data.InstrumentProvider.list_instruments"
+    )
+    assert (
+        context["prompt_projection_payload"]["universe_membership_semantics"]["market_universe_rule"]
+        == "string_codes_are_resolved_by_qlib_D_instruments"
+    )
+    assert (
+        context["prompt_projection_payload"]["universe_membership_semantics"]["filter_pipe_rule"]
+        == "qlib_instrument_filter_pipe_is_applied_after_calendar_window_clipping"
+    )
+    assert (
+        context["prompt_projection_payload"]["universe_membership_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_universe_membership_or_filters"
     )
     assert context["prompt_projection_payload"]["trading_calendar_semantics"]["calendar_frequency"] == "day"
     assert (
@@ -713,6 +752,14 @@ def test_malformed_qlib_prompt_projection_without_instrument_identity_semantics_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_universe_membership_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["universe_membership_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_membership_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_trading_calendar_semantics_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["trading_calendar_semantics"]
@@ -812,6 +859,36 @@ def test_malformed_qlib_prompt_projection_with_mutable_instrument_identity_rule_
     ] = "rdagent_may_override_instrument_identity"
 
     with pytest.raises(QlibAshareSemanticContractError, match="instrument_identity_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_universe_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_membership_semantics"][
+        "instrument_provider_authority"
+    ] = "rdagent.universe.StaticProvider"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_membership_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_static_universe_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_membership_semantics"][
+        "static_universe_rule"
+    ] = "rdagent_may_treat_all_a_as_static"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_membership_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_filter_pipe_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["universe_membership_semantics"][
+        "filter_pipe_rule"
+    ] = "rdagent_may_apply_prompt_filters"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="universe_membership_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1058,6 +1135,15 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "board identity authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.limit_threshold_for_instrument)"
     ) in text
+    assert "universe membership authority: pyqlib (qlib.data.data.InstrumentProvider.list_instruments)" in text
+    assert "universe market rule: string_codes_are_resolved_by_qlib_D_instruments" in text
+    assert (
+        "universe membership window rule: " "instrument_start_end_spans_are_clipped_to_requested_calendar_window"
+    ) in text
+    assert "universe filter pipe rule: qlib_instrument_filter_pipe_is_applied_after_calendar_window_clipping" in text
+    assert (
+        "universe survivorship rule: " "membership_must_remain_point_in_time_by_qlib_instrument_spans_and_filters"
+    ) in text
     assert "trading-calendar authority: pyqlib (qlib.data.data.CalendarProvider.calendar)" in text
     assert "trading-calendar locator: pyqlib (qlib.data.data.CalendarProvider.locate_index)" in text
     assert "trading-calendar frequency: day" in text
@@ -1135,11 +1221,11 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "round-lot full liquidation: sell_all_remaining_position_without_round_lot_residual" in text
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
-        "trading_calendar_semantics, transaction_cost_semantics, suspension_tradability_semantics, "
-        "execution_price_semantics, price_adjustment_semantics, price_limit_semantics, settlement_semantics, "
-        "cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, "
-        "same_day_sell_policy, data_frequency, price_limit_modes, authoritative_limit_fields, "
-        "board_threshold_fields, cost_model"
+        "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
+        "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "price_limit_semantics, settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, "
+        "trade_unit, position_type, settlement_rule, same_day_sell_policy, data_frequency, price_limit_modes, "
+        "authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
