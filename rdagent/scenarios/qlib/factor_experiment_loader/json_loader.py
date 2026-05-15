@@ -10,18 +10,23 @@ from rdagent.components.coder.factor_coder.factor import (
 from rdagent.components.loader.experiment_loader import FactorExperimentLoader
 from rdagent.core.experiment import Experiment, Loader
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
+from rdagent.scenarios.qlib.proposal.factor_semantics import (
+    build_qlib_ashare_factor_task_source_boundary,
+)
 
 
 class FactorExperimentLoaderFromDict(FactorExperimentLoader):
     def load(self, factor_dict: dict) -> QlibFactorExperiment:
         """Load data from a dict."""
         task_l = []
+        source_data_boundary = build_qlib_ashare_factor_task_source_boundary()
         for factor_name, factor_data in factor_dict.items():
             task = FactorTask(
                 factor_name=factor_name,
                 factor_description=factor_data["description"],
                 factor_formulation=factor_data["formulation"],
                 variables=factor_data["variables"],
+                source_data_boundary=source_data_boundary,
             )
             task_l.append(task)
         exp = QlibFactorExperiment(sub_tasks=task_l)
@@ -48,12 +53,14 @@ class FactorTestCaseLoaderFromJsonFile:
         with open(json_file_path, "r") as file:
             factor_dict = json.load(file)
         test_cases = TestCases()
+        source_data_boundary = build_qlib_ashare_factor_task_source_boundary()
         for factor_name, factor_data in factor_dict.items():
             task = FactorTask(
                 factor_name=factor_name,
                 factor_description=factor_data["description"],
                 factor_formulation=factor_data["formulation"],
                 variables=factor_data["variables"],
+                source_data_boundary=source_data_boundary,
             )
             gt = FactorFBWorkspace(task, raise_exception=False)
             code = {"factor.py": factor_data["gt_code"]}

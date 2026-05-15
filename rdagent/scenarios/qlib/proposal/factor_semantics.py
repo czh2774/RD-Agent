@@ -64,6 +64,17 @@ def _raise_forbidden_default_source_error(text: str, *, subject: str) -> None:
         )
 
 
+def build_qlib_ashare_factor_task_source_boundary() -> str:
+    allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
+    forbidden_sources = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)
+    return (
+        "Qlib daily A-share research data boundary: use only registered daily Qlib fields "
+        f"({allowed_fields}) or explicitly supplied daily point-in-time fields. "
+        f"Forbidden default sources: {forbidden_sources}, turnover. "
+        "Do not infer unregistered fields during factor implementation or code review."
+    )
+
+
 def _default_hypothesis_response_normalizer(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Qlib factor hypothesis response must be a JSON object.")
