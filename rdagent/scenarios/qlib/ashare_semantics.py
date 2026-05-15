@@ -20,6 +20,10 @@ QLIB_ASHARE_LABEL_TEMPLATE_PATHS = (
     "rdagent/scenarios/qlib/experiment/model_template/conf_sota_factors_model.yaml",
 )
 QLIB_ASHARE_LABEL_PROMPT_PATHS = ("rdagent/scenarios/qlib/experiment/prompts.yaml",)
+QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS = (
+    "rdagent/scenarios/qlib/experiment/prompts.yaml",
+    "rdagent/scenarios/qlib/prompts.yaml",
+)
 QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
 QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
     "1day.excess_return_without_cost.annualized_return",
@@ -172,6 +176,7 @@ def format_rd_agent_ashare_semantic_context(
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
     supervised_label = _mapping(prompt_payload.get("supervised_label_semantics"))
+    prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
@@ -268,6 +273,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- supervised-label expression: {supervised_label.get('label_expression')}",
             f"- supervised-label horizon: {supervised_label.get('label_horizon_rule')}",
             f"- supervised-label prompt wording: {supervised_label.get('prompt_wording_rule')}",
+            f"- prediction-signal authority: pyqlib ({prediction_signal.get('model_signal_authority')})",
+            f"- prediction-signal artifact: {prediction_signal.get('prediction_artifact')}",
+            f"- prediction-signal column: {prediction_signal.get('prediction_column')}",
+            f"- prediction-signal model rule: {prediction_signal.get('model_predict_rule')}",
+            f"- prediction-signal ranking rule: {prediction_signal.get('strategy_ranking_rule')}",
+            f"- prediction-signal prompt wording: {prediction_signal.get('prompt_wording_rule')}",
             f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
             f"- signal-ic calculation: pyqlib ({signal_ic.get('ic_calculation_authority')})",
             "- signal-ic metrics: " + ", ".join(str(item) for item in signal_ic.get("metric_fields", [])),
@@ -446,6 +457,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_strategy_signal_to_order_generation",
         "redefine_supervised_label_expression_or_horizon",
+        "redefine_prediction_signal_score_or_return_realization",
         "redefine_signal_ic_or_rank_ic_metrics",
         "redefine_portfolio_risk_analysis_metrics",
         "redefine_benchmark_return_series_or_default_benchmark",
@@ -500,6 +512,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "executor_decision_semantics",
         "strategy_order_semantics",
         "supervised_label_semantics",
+        "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
@@ -539,6 +552,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "executor_decision_semantics",
         "strategy_order_semantics",
         "supervised_label_semantics",
+        "prediction_signal_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
@@ -1291,6 +1305,60 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if supervised_label.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"supervised_label_semantics must preserve {key}"
+            )
+    prediction_signal = _mapping(prompt_payload.get("prediction_signal_semantics"))
+    for key in (
+        "semantic_name",
+        "model_signal_authority",
+        "signal_cache_authority",
+        "signal_interface_authority",
+        "signal_record_authority",
+        "strategy_consumption_authority",
+        "prediction_artifact",
+        "prediction_column",
+        "model_predict_rule",
+        "series_prediction_rule",
+        "dataframe_prediction_rule",
+        "resample_rule",
+        "strategy_ranking_rule",
+        "missing_signal_rule",
+        "label_alignment_rule",
+        "prompt_wording_rule",
+        "rdagent_prompt_paths",
+        "rdagent_rule",
+    ):
+        if key not in prediction_signal:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload prediction_signal_semantics must include {key}"
+            )
+    expected_prediction_signal_values = {
+        "semantic_name": "a_share_prediction_signal_score",
+        "model_signal_authority": "qlib.backtest.signal.ModelSignal",
+        "signal_cache_authority": "qlib.backtest.signal.SignalWCache",
+        "signal_interface_authority": "qlib.backtest.signal.Signal.get_signal",
+        "signal_record_authority": "qlib.workflow.record_temp.SignalRecord",
+        "strategy_consumption_authority": (
+            "qlib.contrib.strategy.signal_strategy.TopkDropoutStrategy.generate_trade_decision"
+        ),
+        "prediction_artifact": "pred.pkl",
+        "prediction_column": "score",
+        "model_predict_rule": "model_predict_output_is_prediction_score_not_realized_or_executable_return",
+        "series_prediction_rule": "series_prediction_is_saved_as_score_column",
+        "dataframe_prediction_rule": "first_prediction_column_is_used_when_prediction_is_dataframe",
+        "resample_rule": "SignalWCache_uses_last_signal_between_decision_start_and_end",
+        "strategy_ranking_rule": "TopkDropoutStrategy_sorts_prediction_scores_descending_for_candidate_selection",
+        "missing_signal_rule": "missing_signal_returns_empty_TradeDecisionWO",
+        "label_alignment_rule": "prediction_score_is_trained_against_qlib_owned_LABEL0_without_redefining_return_horizon",
+        "prompt_wording_rule": (
+            "describe_as_prediction_signal_score_for_LABEL0_not_realized_future_return_or_guaranteed_portfolio_return"
+        ),
+        "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
+        "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
+    }
+    for key, expected_value in expected_prediction_signal_values.items():
+        if prediction_signal.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"prediction_signal_semantics must preserve {key}"
             )
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     for key in (
