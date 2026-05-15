@@ -14,6 +14,8 @@ import pytest
 import rdagent.scenarios.qlib.ashare_semantics as rdagent_ashare_semantics
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
+    QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
+    QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE,
     QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS,
     QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_METRIC_PATH,
     QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE,
@@ -23,6 +25,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD,
     QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
     QLIB_ASHARE_BANDIT_REWARD_RULE,
     QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,
@@ -495,6 +498,9 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "bandit_max_drawdown_sign_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE,
         "bandit_max_drawdown_zero_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE,
         "bandit_max_drawdown_positive_failure": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE,
+        "bandit_raw_max_drawdown_field": QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD,
+        "bandit_drawdown_magnitude_field": QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
+        "bandit_drawdown_magnitude_rule": QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE,
         "bandit_feature_vector_fields": list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS),
         "bandit_reward_objective": QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
         "bandit_signal_context_rule": QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,
@@ -1563,6 +1569,9 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE == feedback["bandit_max_drawdown_sign_rule"]
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE == feedback["bandit_max_drawdown_zero_rule"]
     assert QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE == feedback["bandit_max_drawdown_positive_failure"]
+    assert QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD == feedback["bandit_raw_max_drawdown_field"]
+    assert QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD == feedback["bandit_drawdown_magnitude_field"]
+    assert QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE == feedback["bandit_drawdown_magnitude_rule"]
     assert list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS) == feedback["bandit_feature_vector_fields"]
     assert QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE == feedback["bandit_reward_objective"]
     assert QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE == feedback["bandit_signal_context_rule"]
@@ -1594,6 +1603,8 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS" in bandit_source
     assert "QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE" in bandit_source
     assert "QlibAshareBanditMetricError" in bandit_source
+    assert "drawdown_magnitude" in bandit_source
+    assert "self.drawdown_magnitude" in bandit_source
     assert "result.get(" not in bandit_source
     assert "return Metrics()" not in bandit_source
     assert "self.weights" not in bandit_source
@@ -2366,6 +2377,9 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     metrics = extract_metrics_from_experiment(experiment)
 
     assert isinstance(metrics, Metrics)
+    assert metrics.mdd == -0.1
+    assert metrics.drawdown_magnitude == 0.1
+    assert abs(metrics.as_vector()[6] - 0.1) < 1e-12
     assert abs(metrics.drawdown_adjusted_return - 2.0) < 1e-12
     assert abs(metrics.as_vector()[-1] - 2.0) < 1e-12
     assert not hasattr(metrics, "sharpe")
@@ -2385,6 +2399,8 @@ def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_al
     )
     with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE):
         extract_metrics_from_experiment(positive_mdd_experiment)
+    with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE):
+        Metrics(mdd=0.1).as_vector()
 
     missing_experiment = types.SimpleNamespace(result={QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[0]: 0.1})
     with pytest.raises(QlibAshareBanditMetricError, match=QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE):
@@ -3594,6 +3610,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_bandit_drawdown_sign_rule
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_bandit_drawdown_magnitude_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "bandit_drawdown_magnitude_rule"
+    ] = "feature_vector_may_use_raw_negative_max_drawdown"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_bandit_reward_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"][
@@ -4251,6 +4277,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"feedback-metric max drawdown sign rule: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE}" in text
     assert f"feedback-metric max drawdown zero rule: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE}" in text
     assert f"feedback-metric max drawdown positive failure: {QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE}" in text
+    assert f"feedback-metric raw max drawdown field: {QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD}" in text
+    assert f"feedback-metric drawdown magnitude field: {QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD}" in text
+    assert f"feedback-metric drawdown magnitude rule: {QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE}" in text
     assert "feedback-metric bandit feature vector: " + ", ".join(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS) in text
     assert f"feedback-metric bandit reward objective: {QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE}" in text
     assert f"feedback-metric bandit signal context: {QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE}" in text

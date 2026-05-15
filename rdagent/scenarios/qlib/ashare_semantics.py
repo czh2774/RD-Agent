@@ -181,6 +181,11 @@ QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE = "zero_max_drawdown_sets_drawdown_adj
 QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE = (
     "positive_max_drawdown_metric_fails_closed_without_reward_reinterpretation"
 )
+QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD = "mdd"
+QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD = "drawdown_magnitude"
+QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE = (
+    "drawdown_magnitude_equals_abs_raw_non_positive_max_drawdown_after_positive_metric_fail_closed"
+)
 QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS = (
     "ic",
     "icir",
@@ -188,7 +193,7 @@ QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS = (
     "rank_icir",
     "arr",
     "ir",
-    "mdd",
+    QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
 )
 QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE = QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME
@@ -583,6 +588,9 @@ def format_rd_agent_ashare_semantic_context(
             f"- feedback-metric max drawdown zero rule: {feedback_metric.get('bandit_max_drawdown_zero_rule')}",
             f"- feedback-metric max drawdown positive failure: "
             f"{feedback_metric.get('bandit_max_drawdown_positive_failure')}",
+            f"- feedback-metric raw max drawdown field: {feedback_metric.get('bandit_raw_max_drawdown_field')}",
+            f"- feedback-metric drawdown magnitude field: {feedback_metric.get('bandit_drawdown_magnitude_field')}",
+            f"- feedback-metric drawdown magnitude rule: {feedback_metric.get('bandit_drawdown_magnitude_rule')}",
             "- feedback-metric bandit feature vector: "
             + ", ".join(str(item) for item in feedback_metric.get("bandit_feature_vector_fields", [])),
             f"- feedback-metric bandit reward objective: {feedback_metric.get('bandit_reward_objective')}",
@@ -1981,6 +1989,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_max_drawdown_sign_rule",
         "bandit_max_drawdown_zero_rule",
         "bandit_max_drawdown_positive_failure",
+        "bandit_raw_max_drawdown_field",
+        "bandit_drawdown_magnitude_field",
+        "bandit_drawdown_magnitude_rule",
         "bandit_feature_vector_fields",
         "bandit_reward_objective",
         "bandit_signal_context_rule",
@@ -2016,6 +2027,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_max_drawdown_sign_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_SIGN_RULE,
         "bandit_max_drawdown_zero_rule": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_ZERO_RULE,
         "bandit_max_drawdown_positive_failure": QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE,
+        "bandit_raw_max_drawdown_field": QLIB_ASHARE_BANDIT_RAW_MAX_DRAWDOWN_FIELD,
+        "bandit_drawdown_magnitude_field": QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_FIELD,
+        "bandit_drawdown_magnitude_rule": QLIB_ASHARE_BANDIT_DRAWDOWN_MAGNITUDE_RULE,
         "bandit_feature_vector_fields": list(QLIB_ASHARE_BANDIT_FEATURE_VECTOR_FIELDS),
         "bandit_reward_objective": QLIB_ASHARE_BANDIT_REWARD_OBJECTIVE,
         "bandit_signal_context_rule": QLIB_ASHARE_BANDIT_SIGNAL_CONTEXT_RULE,

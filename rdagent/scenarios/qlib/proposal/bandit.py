@@ -30,6 +30,15 @@ class Metrics:
     mdd: float = 0.0
     drawdown_adjusted_return: float = 0.0
 
+    @property
+    def drawdown_magnitude(self) -> float:
+        if self.mdd > 0:
+            raise QlibAshareBanditMetricError(
+                f"{QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE}: "
+                f"{QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2]}"
+            )
+        return -self.mdd
+
     def as_vector(self) -> np.ndarray:
         return np.array(
             [
@@ -39,7 +48,7 @@ class Metrics:
                 self.rank_icir,
                 self.arr,
                 self.ir,
-                -self.mdd,
+                self.drawdown_magnitude,
                 self.drawdown_adjusted_return,
             ]
         )
