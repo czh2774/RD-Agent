@@ -15,6 +15,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
+    QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS,
     QLIB_ASHARE_LABEL_COLUMN,
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
@@ -25,6 +26,9 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS,
     QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS,
     QLIB_ASHARE_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS,
+    QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
+    QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
     QLIB_ASHARE_TEMPLATE_BENCHMARK,
     QLIB_ASHARE_TEMPLATE_MARKET,
@@ -434,6 +438,27 @@ def _universe_benchmark_binding_semantics() -> dict[str, Any]:
     }
 
 
+def _runtime_handoff_template_binding_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_rd_agent_runtime_handoff_template_binding",
+        "handoff_id": "qlib_joinquant_ashare_runtime_handoff_v1",
+        "binding_kind": "rdagent_qlib_template_backtest_runtime_kwargs",
+        "rdagent_template_paths": list(QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS),
+        "required_backtest_kwargs": deepcopy(QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS),
+        "forbidden_legacy_exchange_kwargs": deepcopy(QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS),
+        "runtime_rule": "rdagent_templates_must_bind_port_analysis_backtest_to_qlib_runtime_handoff_values",
+        "prompt_boundary_rule": "execution_kwargs_remain_runtime_handoff_not_prompt_authority",
+        "rdagent_rule": "consume_qlib_runtime_handoff_values_without_redefining_a_share_execution_kwargs",
+    }
+
+
+def _runtime_handoff_template_binding_prompt_semantics() -> dict[str, Any]:
+    projection = _runtime_handoff_template_binding_semantics()
+    del projection["required_backtest_kwargs"]
+    del projection["forbidden_legacy_exchange_kwargs"]
+    return projection
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -448,7 +473,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, feedback metric consumption, benchmark return, universe/benchmark binding, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, account-position update, account valuation, trade indicator/execution-quality, executor/trade-decision lifecycle, strategy signal-to-order generation, supervised label, prediction signal, signal IC, portfolio risk analysis, feedback metric consumption, benchmark return, universe/benchmark binding, runtime handoff template binding, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -489,6 +514,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
+                "redefine_runtime_handoff_or_template_execution_kwargs",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -530,6 +556,7 @@ def _valid_contract() -> dict[str, Any]:
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
+                "runtime_handoff_template_binding_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -574,6 +601,7 @@ def _valid_contract() -> dict[str, Any]:
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
+                "runtime_handoff_template_binding_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -820,6 +848,7 @@ def _valid_contract() -> dict[str, Any]:
             "feedback_metric_semantics": _feedback_metric_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
             "universe_benchmark_binding_semantics": _universe_benchmark_binding_semantics(),
+            "runtime_handoff_template_binding_semantics": _runtime_handoff_template_binding_prompt_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -918,6 +947,7 @@ def _valid_contract() -> dict[str, Any]:
                 "do_not_mutate_runtime_payload_values",
                 "fail_closed_on_missing_payload_or_fingerprint",
             ],
+            "template_runtime_binding": _runtime_handoff_template_binding_semantics(),
         },
         "market_semantics": {
             "market": "china_a_share",
@@ -951,14 +981,8 @@ def _valid_contract() -> dict[str, Any]:
             },
         },
         "runtime_surfaces": {
-            "exchange_kwargs": {
-                "limit_threshold": "joinquant_ashare",
-                "trade_unit": 100,
-            },
-            "backtest_kwargs": {
-                "pos_type": "AsharePosition",
-                "exchange_kwargs": {"limit_threshold": "joinquant_ashare"},
-            },
+            "exchange_kwargs": deepcopy(QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS),
+            "backtest_kwargs": deepcopy(QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS),
         },
         "rdagent_must_not_redefine": [
             "instrument_identity_semantics",
@@ -978,6 +1002,7 @@ def _valid_contract() -> dict[str, Any]:
             "feedback_metric_semantics",
             "benchmark_return_semantics",
             "universe_benchmark_binding_semantics",
+            "runtime_handoff_template_binding_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -1064,6 +1089,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark"
         in boundary["rdagent_forbidden_actions"]
     )
+    assert "redefine_runtime_handoff_or_template_execution_kwargs" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -1087,6 +1113,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "runtime_handoff_template_binding_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1171,6 +1198,10 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
         == _universe_benchmark_binding_semantics()
+    )
+    assert (
+        context["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]
+        == _runtime_handoff_template_binding_prompt_semantics()
     )
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
@@ -1355,6 +1386,29 @@ def test_rd_agent_templates_bind_qlib_owned_universe_and_benchmark_without_cross
             assert f"benchmark: &benchmark {forbidden_value}" not in template_text
 
 
+def test_rd_agent_templates_bind_qlib_owned_runtime_handoff_backtest_kwargs() -> None:
+    binding = _runtime_handoff_template_binding_semantics()
+
+    for relative_path in QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS:
+        template_text = (REPO_ROOT / relative_path).read_text()
+
+        assert relative_path in binding["rdagent_template_paths"]
+        assert "pos_type: AsharePosition" in template_text
+        assert "limit_threshold: joinquant_ashare" in template_text
+        assert "ashare_price_limit_mode: strict" in template_text
+        assert "ashare_limit_options:" in template_text
+        assert "close_commission: 0.0003" in template_text
+        assert "close_tax: 0.001" in template_text
+        assert "trade_unit: 100" in template_text
+        assert "deal_price: close" in template_text
+        assert "open_cost: 0.0003" in template_text
+        assert "close_cost: 0.0013" in template_text
+        assert "min_cost: 5.0" in template_text
+        assert "limit_threshold: 0.095" not in template_text
+        assert "open_cost: 0.0005" not in template_text
+        assert "close_cost: 0.0015" not in template_text
+
+
 def test_rd_agent_feedback_metric_prompts_use_exact_qlib_paths_without_sharpe_alias() -> None:
     combined = "\n".join((REPO_ROOT / path).read_text() for path in QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS)
 
@@ -1414,8 +1468,11 @@ def test_rd_agent_runtime_handoff_keeps_execution_payload_separate_from_prompt_c
     assert handoff["semantic_authority"] == "qlib.backtest.ashare_semantics"
     assert handoff["mutation_policy"] == "pass_through_only"
     assert "do_not_mutate_runtime_payload_values" in handoff["consumer_obligations"]
+    assert handoff["runtime_payload"]["exchange_kwargs"] == QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS
+    assert handoff["runtime_payload"]["backtest_kwargs"] == QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS
     assert handoff["runtime_payload"]["exchange_kwargs"]["trade_unit"] == 100
     assert handoff["runtime_payload"]["backtest_kwargs"]["pos_type"] == "AsharePosition"
+    assert handoff["template_runtime_binding"] == _runtime_handoff_template_binding_semantics()
 
 
 def test_legacy_qlib_without_contract_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1452,6 +1509,34 @@ def test_malformed_qlib_runtime_handoff_without_matching_fingerprint_fails_close
     contract["runtime_handoff_contract"]["source_fingerprint"] = "b" * 64
 
     with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_contract"):
+        build_rd_agent_ashare_runtime_handoff(contract)
+
+
+def test_malformed_qlib_runtime_handoff_without_template_binding_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["runtime_handoff_contract"]["template_runtime_binding"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="template_runtime_binding"):
+        build_rd_agent_ashare_runtime_handoff(contract)
+
+
+def test_malformed_qlib_runtime_handoff_with_legacy_template_limit_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["runtime_handoff_contract"]["template_runtime_binding"]["required_backtest_kwargs"]["exchange_kwargs"][
+        "limit_threshold"
+    ] = 0.095
+
+    with pytest.raises(QlibAshareSemanticContractError, match="template_runtime_binding"):
+        build_rd_agent_ashare_runtime_handoff(contract)
+
+
+def test_malformed_qlib_runtime_handoff_template_binding_drift_from_runtime_surface_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["runtime_handoff_contract"]["template_runtime_binding"]["required_backtest_kwargs"][
+        "pos_type"
+    ] = "Position"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="template_runtime_binding"):
         build_rd_agent_ashare_runtime_handoff(contract)
 
 
@@ -2365,6 +2450,24 @@ def test_malformed_qlib_prompt_projection_with_mutable_universe_benchmark_separa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_runtime_template_binding_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_template_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_runtime_template_kwargs_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]["required_backtest_kwargs"] = (
+        deepcopy(QLIB_ASHARE_RUNTIME_BACKTEST_KWARGS)
+    )
+
+    with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_template_binding_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -2705,6 +2808,13 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "universe-benchmark template rule: "
         "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing"
     ) in text
+    assert "runtime-handoff template binding: rdagent_qlib_template_backtest_runtime_kwargs" in text
+    assert (
+        "runtime-handoff template rule: "
+        "rdagent_templates_must_bind_port_analysis_backtest_to_qlib_runtime_handoff_values"
+    ) in text
+    assert ("runtime-handoff prompt boundary: " "execution_kwargs_remain_runtime_handoff_not_prompt_authority") in text
+    assert "required_backtest_kwargs" not in text
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -2792,7 +2902,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
