@@ -90,6 +90,12 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
     QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE,
+    QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_SOURCE_PATH,
     QLIB_ASHARE_SUPPORTED_MODEL_TYPES,
     QLIB_ASHARE_TEMPLATE_BENCHMARK,
     QLIB_ASHARE_TEMPLATE_MARKET,
@@ -674,6 +680,20 @@ def _research_persona_semantics() -> dict[str, Any]:
     }
 
 
+def _strategy_benchmark_documentation_semantics() -> dict[str, Any]:
+    return {
+        "semantic_name": "a_share_enhanced_indexing_benchmark_documentation",
+        "strategy_authority": "qlib.contrib.strategy.signal_strategy.EnhancedIndexingStrategy",
+        "documentation_source_path": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_SOURCE_PATH,
+        "benchmark_context": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT,
+        "benchmark_example": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE,
+        "benchmark_code_example": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE,
+        "forbidden_cross_market_examples": list(QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES),
+        "documentation_rule": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE,
+        "rdagent_rule": "consume_a_share_strategy_benchmark_examples_without_cross_market_index_aliases",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -730,6 +750,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
+                "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example",
                 "redefine_runtime_handoff_or_template_execution_kwargs",
                 "redefine_research_data_source_availability_or_imply_unregistered_sources",
                 "redefine_research_persona_or_replace_a_share_market_context",
@@ -775,6 +796,7 @@ def _valid_contract() -> dict[str, Any]:
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
+                "strategy_benchmark_documentation_semantics",
                 "runtime_handoff_template_binding_semantics",
                 "research_data_source_semantics",
                 "research_persona_semantics",
@@ -823,6 +845,7 @@ def _valid_contract() -> dict[str, Any]:
                 "feedback_metric_semantics",
                 "benchmark_return_semantics",
                 "universe_benchmark_binding_semantics",
+                "strategy_benchmark_documentation_semantics",
                 "runtime_handoff_template_binding_semantics",
                 "research_data_source_semantics",
                 "research_persona_semantics",
@@ -1080,6 +1103,7 @@ def _valid_contract() -> dict[str, Any]:
             "feedback_metric_semantics": _feedback_metric_semantics(),
             "benchmark_return_semantics": _benchmark_return_semantics(),
             "universe_benchmark_binding_semantics": _universe_benchmark_binding_semantics(),
+            "strategy_benchmark_documentation_semantics": _strategy_benchmark_documentation_semantics(),
             "runtime_handoff_template_binding_semantics": _runtime_handoff_template_binding_prompt_semantics(),
             "research_data_source_semantics": _research_data_source_semantics(),
             "research_persona_semantics": _research_persona_semantics(),
@@ -1237,6 +1261,7 @@ def _valid_contract() -> dict[str, Any]:
             "feedback_metric_semantics",
             "benchmark_return_semantics",
             "universe_benchmark_binding_semantics",
+            "strategy_benchmark_documentation_semantics",
             "runtime_handoff_template_binding_semantics",
             "research_data_source_semantics",
             "research_persona_semantics",
@@ -1329,6 +1354,10 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark"
         in boundary["rdagent_forbidden_actions"]
     )
+    assert (
+        "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example"
+        in boundary["rdagent_forbidden_actions"]
+    )
     assert "redefine_runtime_handoff_or_template_execution_kwargs" in boundary["rdagent_forbidden_actions"]
     assert (
         "redefine_research_data_source_availability_or_imply_unregistered_sources"
@@ -1359,6 +1388,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "strategy_benchmark_documentation_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
         "research_persona_semantics",
@@ -1447,6 +1477,10 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
         == _universe_benchmark_binding_semantics()
+    )
+    assert (
+        context["prompt_projection_payload"]["strategy_benchmark_documentation_semantics"]
+        == _strategy_benchmark_documentation_semantics()
     )
     assert (
         context["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]
@@ -1573,6 +1607,7 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     feedback = contract["prompt_projection_payload"]["feedback_metric_semantics"]
     signal = contract["prompt_projection_payload"]["signal_ic_semantics"]
     binding = contract["prompt_projection_payload"]["universe_benchmark_binding_semantics"]
+    benchmark_doc = contract["prompt_projection_payload"]["strategy_benchmark_documentation_semantics"]
 
     assert list(QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS) == signal["rdagent_consumed_metric_paths"]
     assert list(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS) == portfolio["rdagent_prompt_metric_paths"]
@@ -1630,6 +1665,13 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_TEMPLATE_MARKET == binding["template_market_value"]
     assert QLIB_ASHARE_TEMPLATE_BENCHMARK == binding["template_benchmark_value"]
     assert list(QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS) == binding["rdagent_template_paths"]
+    assert QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT == benchmark_doc["benchmark_context"]
+    assert QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE == benchmark_doc["benchmark_example"]
+    assert QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE == benchmark_doc["benchmark_code_example"]
+    assert (
+        list(QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES) == benchmark_doc["forbidden_cross_market_examples"]
+    )
+    assert QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE == benchmark_doc["documentation_rule"]
     assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
 
 
@@ -3825,6 +3867,32 @@ def test_malformed_qlib_prompt_projection_with_mutable_universe_benchmark_separa
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_strategy_benchmark_doc_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["strategy_benchmark_documentation_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="strategy_benchmark_documentation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_cross_market_strategy_benchmark_doc_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["strategy_benchmark_documentation_semantics"]["benchmark_example"] = "S&P 500"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="strategy_benchmark_documentation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_strategy_benchmark_doc_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["strategy_benchmark_documentation_semantics"][
+        "documentation_rule"
+    ] = "enhanced_indexing_strategy_examples_may_use_us_index_examples"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="strategy_benchmark_documentation_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_runtime_template_binding_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["runtime_handoff_template_binding_semantics"]
@@ -4420,6 +4488,13 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "universe-benchmark template rule: "
         "bind_market_to_instruments_and_benchmark_to_backtest_without_cross_aliasing"
     ) in text
+    assert f"strategy-benchmark doc context: {QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT}" in text
+    assert f"strategy-benchmark doc example: {QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE}" in text
+    assert f"strategy-benchmark doc code example: {QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE}" in text
+    assert f"strategy-benchmark doc rule: {QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE}" in text
+    assert (
+        "strategy-benchmark forbidden examples: " + ", ".join(QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES)
+    ) in text
     assert "runtime-handoff template binding: rdagent_qlib_template_backtest_runtime_kwargs" in text
     assert (
         "runtime-handoff template rule: "
@@ -4528,7 +4603,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, excess_return_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, research_persona_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, account_update_semantics, account_valuation_semantics, trade_indicator_semantics, executor_decision_semantics, strategy_order_semantics, supervised_label_semantics, prediction_signal_semantics, signal_ic_semantics, portfolio_risk_semantics, excess_return_semantics, feedback_metric_semantics, benchmark_return_semantics, universe_benchmark_binding_semantics, strategy_benchmark_documentation_semantics, runtime_handoff_template_binding_semantics, research_data_source_semantics, research_persona_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
