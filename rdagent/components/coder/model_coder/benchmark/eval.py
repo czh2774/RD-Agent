@@ -6,12 +6,12 @@ from rdagent.components.coder.model_coder.model import ModelFBWorkspace
 
 def get_data_conf(init_val):
     # TODO: design this step in the workflow
-    in_dim = 1000
-    in_channels = 128
-    exec_config = {"model_eval_param_init": init_val}
-    node_feature = torch.randn(in_dim, in_channels)
-    edge_index = torch.randint(0, in_dim, (2, 2000))
-    return (node_feature, edge_index), exec_config
+    batch_size = 8
+    num_features = 10
+    num_timesteps = 4
+    exec_config = {"model_eval_param_init": init_val, "model_type": "TimeSeries"}
+    feature_window = torch.full((batch_size, num_timesteps, num_features), init_val)
+    return feature_window, exec_config
 
 
 class ModelImpValEval:
