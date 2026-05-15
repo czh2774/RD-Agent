@@ -25,8 +25,8 @@ class Metrics:
     icir: float = 0.0
     rank_ic: float = 0.0
     rank_icir: float = 0.0
-    arr: float = 0.0
-    ir: float = 0.0
+    annualized_excess_return_with_cost: float = 0.0
+    information_ratio_with_cost: float = 0.0
     mdd: float = 0.0
     drawdown_adjusted_return: float = 0.0
 
@@ -46,8 +46,8 @@ class Metrics:
                 self.icir,
                 self.rank_ic,
                 self.rank_icir,
-                self.arr,
-                self.ir,
+                self.annualized_excess_return_with_cost,
+                self.information_ratio_with_cost,
                 self.drawdown_magnitude,
                 self.drawdown_adjusted_return,
             ]
@@ -66,22 +66,22 @@ def extract_metrics_from_experiment(experiment) -> Metrics:
     icir = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[1])
     rank_ic = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[2])
     rank_icir = _required_numeric_metric(result, QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS[3])
-    arr = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0])
-    ir = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1])
+    annualized_excess_return_with_cost = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[0])
+    information_ratio_with_cost = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[1])
     mdd = _required_numeric_metric(result, QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2])
     if mdd > 0:
         raise QlibAshareBanditMetricError(
             f"{QLIB_ASHARE_BANDIT_MAX_DRAWDOWN_POSITIVE_FAILURE}: " f"{QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS[2]}"
         )
-    drawdown_adjusted_return = 0.0 if mdd == 0 else arr / abs(mdd)
+    drawdown_adjusted_return = 0.0 if mdd == 0 else annualized_excess_return_with_cost / abs(mdd)
 
     return Metrics(
         ic=ic,
         icir=icir,
         rank_ic=rank_ic,
         rank_icir=rank_icir,
-        arr=arr,
-        ir=ir,
+        annualized_excess_return_with_cost=annualized_excess_return_with_cost,
+        information_ratio_with_cost=information_ratio_with_cost,
         mdd=mdd,
         **{QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME: drawdown_adjusted_return},
     )
