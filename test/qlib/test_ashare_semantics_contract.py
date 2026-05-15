@@ -47,6 +47,9 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     format_rd_agent_ashare_semantic_context,
     load_qlib_ashare_contract,
 )
+from rdagent.scenarios.qlib.proposal.factor_semantics import (
+    validate_qlib_factor_hypothesis_response,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -1538,6 +1541,47 @@ def test_rd_agent_prompts_describe_excess_return_as_benchmark_relative_not_raw_r
     assert "enhance our investment returns" not in combined
     assert "sources of excess returns" not in combined
     assert "raw portfolio return aliases" in combined
+
+
+def test_rd_agent_factor_proposal_validator_uses_qlib_daily_research_data_boundary() -> None:
+    accepted = validate_qlib_factor_hypothesis_response(
+        {
+            "hypothesis": "Use close-to-vwap reversal and volume persistence on daily Qlib A-share bars.",
+            "reason": "The signal is grounded in daily $close, $vwap, and $volume fields from the Qlib boundary.",
+        }
+    )
+    assert accepted["hypothesis"].startswith("Use close-to-vwap")
+
+    forbidden_payloads = [
+        {
+            "hypothesis": "Use analyst consensus revisions to predict close-to-close reversal.",
+            "reason": "Consensus expectation data may identify future alpha.",
+        },
+        {
+            "hypothesis": "Use minute-level high-frequency vwap momentum during the morning session.",
+            "reason": "Intraday price behavior may improve the daily signal.",
+        },
+        {
+            "hypothesis": "Use turnover acceleration as the primary A-share liquidity factor.",
+            "reason": "Turnover is not part of the default Qlib daily research data boundary.",
+        },
+    ]
+    for payload in forbidden_payloads:
+        with pytest.raises(ValueError, match="Qlib daily A-share research data boundary"):
+            validate_qlib_factor_hypothesis_response(payload)
+
+
+def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields() -> None:
+    prompt_text = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
+
+    assert (
+        "Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`)" in prompt_text
+    )
+    assert (
+        "Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, "
+        "or unregistered external vendor fields as default Qlib inputs."
+    ) in prompt_text
+    assert "price, volume, turnover, return, or related financial fields" not in prompt_text
 
 
 def test_rd_agent_bandit_uses_derived_drawdown_adjusted_return_without_sharpe_alias(

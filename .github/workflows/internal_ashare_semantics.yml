@@ -17,6 +17,8 @@ on:
       - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
       - "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml"
       - "rdagent/scenarios/qlib/proposal/bandit.py"
+      - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
+      - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -37,6 +39,8 @@ on:
       - "rdagent/scenarios/qlib/experiment/quant_experiment.py"
       - "rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml"
       - "rdagent/scenarios/qlib/proposal/bandit.py"
+      - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
+      - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -70,6 +74,8 @@ jobs:
             rdagent/scenarios/qlib/ashare_semantics.py \
             rdagent/scenarios/qlib/developer/feedback.py \
             rdagent/scenarios/qlib/proposal/bandit.py \
+            rdagent/scenarios/qlib/proposal/factor_proposal.py \
+            rdagent/scenarios/qlib/proposal/factor_semantics.py \
             rdagent/log/ui/app.py \
             test/qlib/test_ashare_semantics_contract.py
 
