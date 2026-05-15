@@ -10,6 +10,7 @@ import pytest
 from rdagent.scenarios.qlib.ashare_semantics import (
     QlibAshareSemanticContractError,
     append_ashare_semantic_context,
+    build_rd_agent_ashare_runtime_handoff,
     build_rd_agent_ashare_semantic_context,
     format_rd_agent_ashare_semantic_context,
     load_qlib_ashare_contract,
@@ -99,6 +100,30 @@ def _valid_contract() -> dict[str, Any]:
                 "market_semantics.cost_model",
             ],
         },
+        "runtime_handoff_contract": {
+            "handoff_id": "qlib_joinquant_ashare_runtime_handoff_v1",
+            "handoff_kind": "qlib_owned_execution_kwargs",
+            "authority_component": "qlib.backtest.ashare_semantics",
+            "consumer_component": "rdagent.scenarios.qlib.ashare_semantics",
+            "source_fingerprint": "a" * 64,
+            "payload_paths": [
+                "runtime_surfaces.exchange_kwargs",
+                "runtime_surfaces.backtest_kwargs",
+            ],
+            "forbidden_prompt_paths": [
+                "runtime_surfaces.policy_defaults",
+                "runtime_surfaces.exchange_kwargs",
+                "runtime_surfaces.backtest_kwargs",
+                "market_semantics.cost_model",
+            ],
+            "mutation_policy": "pass_through_only",
+            "consumer_obligations": [
+                "preserve_contract_id_schema_version_and_fingerprint",
+                "preserve_qlib_source_component",
+                "do_not_mutate_runtime_payload_values",
+                "fail_closed_on_missing_payload_or_fingerprint",
+            ],
+        },
         "market_semantics": {
             "market": "china_a_share",
             "region": "cn",
@@ -181,7 +206,21 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["failure_contract"]["runtime_projection_drift"] == "fail_closed"
     assert "runtime_surfaces.backtest_kwargs" in context["prompt_projection"]["rdagent_prompt_forbidden_fields"]
     assert context["qlib_market_semantics"]["trade_unit"] == 100
-    assert context["runtime_surfaces"]["backtest_kwargs"]["pos_type"] == "AsharePosition"
+    assert "runtime_surfaces" not in context
+
+
+def test_rd_agent_runtime_handoff_keeps_execution_payload_separate_from_prompt_context() -> None:
+    handoff = build_rd_agent_ashare_runtime_handoff(_valid_contract())
+
+    assert handoff["schema_version"] == "rdagent_ashare_runtime_handoff.v1"
+    assert handoff["handoff_id"] == "qlib_joinquant_ashare_runtime_handoff_v1"
+    assert handoff["qlib_contract_id"] == "rdagent_qlib_joinquant_ashare_semantic_contract_v1"
+    assert handoff["qlib_contract_fingerprint"] == "a" * 64
+    assert handoff["semantic_authority"] == "qlib.backtest.ashare_semantics"
+    assert handoff["mutation_policy"] == "pass_through_only"
+    assert "do_not_mutate_runtime_payload_values" in handoff["consumer_obligations"]
+    assert handoff["runtime_payload"]["exchange_kwargs"]["trade_unit"] == 100
+    assert handoff["runtime_payload"]["backtest_kwargs"]["pos_type"] == "AsharePosition"
 
 
 def test_legacy_qlib_without_contract_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -211,6 +250,14 @@ def test_malformed_qlib_contract_without_fingerprint_fails_closed() -> None:
 
     with pytest.raises(QlibAshareSemanticContractError, match="semantic_fingerprint"):
         build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_runtime_handoff_without_matching_fingerprint_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["runtime_handoff_contract"]["source_fingerprint"] = "b" * 64
+
+    with pytest.raises(QlibAshareSemanticContractError, match="runtime_handoff_contract"):
+        build_rd_agent_ashare_runtime_handoff(contract)
 
 
 def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
