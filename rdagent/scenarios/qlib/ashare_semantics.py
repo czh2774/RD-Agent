@@ -50,6 +50,7 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
 QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES = (
+    "turnover",
     "minute_level_high_frequency_data",
     "analyst_consensus_expectation_factor",
     "unregistered_external_vendor_fields",
