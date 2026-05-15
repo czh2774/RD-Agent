@@ -137,6 +137,7 @@ def format_rd_agent_ashare_semantic_context(
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
+    liquidity_capacity = _mapping(prompt_payload.get("liquidity_capacity_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
@@ -201,6 +202,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- cash state: {cash_constraint.get('cash_state_field')}",
             f"- cash buy rule: {cash_constraint.get('buy_cash_rule')}",
             f"- shorting policy: {cash_constraint.get('shorting_policy')}",
+            f"- liquidity capacity authority: pyqlib ({liquidity_capacity.get('runtime_authority')})",
+            f"- liquidity capacity parameter: {liquidity_capacity.get('capacity_parameter')}",
+            f"- liquidity volume field: {liquidity_capacity.get('volume_field')}",
+            f"- liquidity capacity rule: {liquidity_capacity.get('capacity_clip_rule')}",
             f"- round-lot authority: pyqlib ({order_unit.get('trade_unit')} {order_unit.get('amount_unit')})",
             f"- round-lot buy rule: {order_unit.get('buy_rounding_rule')}",
             f"- round-lot sell rule: {order_unit.get('sell_rounding_rule')}",
@@ -288,6 +293,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_buying_power_or_shorting_policy",
+        "redefine_liquidity_or_volume_capacity_policy",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
         "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -347,6 +353,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "market_semantics.settlement_rule",
         "settlement_semantics",
         "cash_constraint_semantics",
+        "liquidity_capacity_semantics",
         "order_unit_semantics",
     ):
         if key not in prompt_projection_fields:
@@ -937,6 +944,84 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must forbid RD-Agent cash redefinition"
         )
+    liquidity_capacity = _mapping(prompt_payload.get("liquidity_capacity_semantics"))
+    for key in (
+        "semantic_name",
+        "volume_field",
+        "capacity_parameter",
+        "capacity_scope",
+        "default_capacity_rule",
+        "volume_limit_aggregation_rule",
+        "cumulative_limit_rule",
+        "current_limit_rule",
+        "dealt_order_state",
+        "capacity_clip_rule",
+        "runtime_authority",
+        "threshold_parser_authority",
+        "rdagent_rule",
+    ):
+        if key not in liquidity_capacity:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must include {key}"
+            )
+    if liquidity_capacity.get("semantic_name") != "a_share_volume_capacity_limit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must describe A-share capacity"
+        )
+    if liquidity_capacity.get("volume_field") != "$volume":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must bind Qlib volume field"
+        )
+    if liquidity_capacity.get("capacity_parameter") != "volume_threshold":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must bind volume_threshold"
+        )
+    if liquidity_capacity.get("capacity_scope") != "runtime_handoff_only_when_volume_threshold_is_configured":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must keep capacity runtime scoped"
+        )
+    if (
+        liquidity_capacity.get("default_capacity_rule")
+        != "no_prompt_defined_capacity_limit_in_default_joinquant_ashare_contract"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must forbid prompt capacity defaults"
+        )
+    if liquidity_capacity.get("volume_limit_aggregation_rule") != "multiple_volume_limits_are_aggregated_by_min":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must declare min aggregation"
+        )
+    if liquidity_capacity.get("cumulative_limit_rule") != "cum_volume_limits_subtract_dealt_order_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must declare cumulative volume behavior"
+        )
+    if liquidity_capacity.get("current_limit_rule") != "current_volume_limits_use_current_quote_value":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must declare current volume behavior"
+        )
+    if liquidity_capacity.get("dealt_order_state") != "dealt_order_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must declare dealt order state"
+        )
+    if (
+        liquidity_capacity.get("capacity_clip_rule")
+        != "order_deal_amount_is_clipped_to_nonnegative_configured_volume_capacity"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must declare capacity clipping"
+        )
+    if liquidity_capacity.get("runtime_authority") != "qlib.backtest.exchange.Exchange._clip_amount_by_volume":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must name Qlib capacity authority"
+        )
+    if liquidity_capacity.get("threshold_parser_authority") != "qlib.backtest.exchange.Exchange._get_vol_limit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must name threshold parser authority"
+        )
+    if liquidity_capacity.get("rdagent_rule") != "describe_only_do_not_redefine_liquidity_or_volume_capacity":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload liquidity_capacity_semantics must forbid RD-Agent capacity redefinition"
+        )
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     for key in (
         "semantic_name",
@@ -1059,6 +1144,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_limit_semantics",
         "settlement_semantics",
         "cash_constraint_semantics",
+        "liquidity_capacity_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
