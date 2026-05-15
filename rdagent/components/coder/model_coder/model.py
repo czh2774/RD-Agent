@@ -32,9 +32,8 @@ class ModelTask(CoSTEERTask):
         self.variables: str = variables
         self.hyperparameters: str = hyperparameters
         self.training_hyperparameters: str = training_hyperparameters
-        self.model_type: str = (
-            model_type  # Tabular for tabular model, TimesSeries for time series model, Graph for graph model, XGBoost for XGBoost model
-        )
+        # Scenario contracts may narrow generic model families through model_output_boundary.
+        self.model_type: str = model_type
         self.model_output_boundary: Optional[str] = model_output_boundary
         super().__init__(name=name, description=description, *args, **kwargs)
 

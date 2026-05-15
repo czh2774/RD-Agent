@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import rdagent.scenarios.qlib.ashare_semantics as rdagent_ashare_semantics
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
@@ -27,6 +28,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
+    QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
@@ -327,6 +329,7 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
         "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
+        "rdagent_model_implementation_prompt_boundary_rule": QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE,
         "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
         "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
@@ -1835,6 +1838,21 @@ def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> 
     assert "validate_qlib_model_experiment_response(json.loads(response))" in proposal_source
 
 
+def test_rd_agent_model_coder_prompt_treats_qlib_model_output_boundary_as_authority() -> None:
+    model_prompt = (REPO_ROOT / "rdagent/components/coder/model_coder/prompts.yaml").read_text()
+    model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
+    boundary = build_qlib_ashare_model_task_output_boundary(_valid_contract())
+
+    assert QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE in boundary
+    assert "model_output_boundary" in model_prompt
+    assert "non-bypassable implementation boundary" in model_prompt
+    assert "overrides generic model-type examples" in model_prompt
+    assert "implement only the boundary-declared Tabular or TimeSeries model type" in model_prompt
+    assert "do not introduce Graph or XGBoost code paths when that boundary forbids them" in model_prompt
+    assert "Scenario contracts may narrow generic model families through model_output_boundary." in model_task_source
+    assert "TimesSeries" not in model_task_source
+
+
 def test_rd_agent_factor_coder_prompts_enforce_qlib_source_boundary_as_non_bypassable() -> None:
     coder_prompt = (REPO_ROOT / "rdagent/components/coder/factor_coder/prompts.yaml").read_text()
     source_boundary_prompt_keys = [
@@ -2739,6 +2757,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_type_boundary_rule_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_implementation_prompt_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_implementation_prompt_boundary_rule"
+    ] = "rdagent_qlib_model_implementation_prompts_may_follow_generic_graph_or_xgboost_examples"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
@@ -3277,6 +3305,11 @@ def test_malformed_qlib_prompt_projection_with_mutable_order_unit_rule_fails_clo
 def test_optional_prompt_context_reports_unavailable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delitem(sys.modules, "qlib.backtest.ashare_semantics", raising=False)
 
+    def unavailable_import(name: str) -> None:
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(rdagent_ashare_semantics, "import_module", unavailable_import)
+
     text = append_ashare_semantic_context("runtime-ok")
 
     assert "runtime-ok" in text
@@ -3429,6 +3462,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"prediction-signal model output format: {QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE}" in text
     assert f"prediction-signal model task boundary: {QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE}" in text
     assert f"prediction-signal model type boundary: {QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE}" in text
+    assert (
+        "prediction-signal implementation prompt boundary: " f"{QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_BOUNDARY_RULE}"
+    ) in text
     assert "prediction-signal supported model types: Tabular, TimeSeries" in text
     assert "prediction-signal forbidden model types: Graph, XGBoost" in text
     assert (
