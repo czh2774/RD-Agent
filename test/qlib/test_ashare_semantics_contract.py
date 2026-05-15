@@ -17,6 +17,26 @@ from rdagent.scenarios.qlib.ashare_semantics import (
 )
 
 
+def _market_impact_semantics() -> dict[str, str]:
+    return {
+        "semantic_name": "a_share_market_impact_cost_adjustment",
+        "runtime_authority": "qlib.backtest.exchange.Exchange._calc_trade_info_by_order",
+        "cost_authority": "qlib.backtest.exchange.Exchange._calculate_trade_cost",
+        "volume_authority": "qlib.backtest.exchange.Exchange.get_volume",
+        "capacity_authority": "qlib.backtest.exchange.Exchange._clip_amount_by_volume",
+        "configuration_parameter": "impact_cost",
+        "volume_field": "$volume",
+        "total_trade_value_rule": "total_trade_value_equals_quote_volume_times_trade_price",
+        "impact_cost_ratio_rule": "impact_cost_times_post_volume_clip_trade_value_over_total_trade_value_squared",
+        "missing_volume_rule": "missing_zero_or_nan_total_trade_value_uses_raw_impact_cost_ratio",
+        "cost_ratio_rule": "adjusted_cost_ratio_is_added_to_buy_or_sell_cost_ratio_before_cash_guards",
+        "final_cost_rule": "trade_cost_is_recomputed_after_final_deal_amount_with_adjusted_cost_ratio",
+        "joinquant_cost_rule": "joinquant_ashare_policy_receives_adjusted_cost_ratio_as_impact_cost",
+        "numeric_value_exposure": "runtime_handoff_only_not_prompt_projection",
+        "rdagent_rule": "describe_only_do_not_redefine_market_impact_or_cost_ratio",
+    }
+
+
 def _valid_contract() -> dict[str, Any]:
     return {
         "schema_version": "qlib_ashare_semantic_contract.v1",
@@ -31,7 +51,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, order-tradability, order-fill, settlement, cash-settlement, cash/shorting, liquidity/capacity, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, order-fill, settlement, cash-settlement, cash/shorting, liquidity/capacity, market-impact, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -59,6 +79,7 @@ def _valid_contract() -> dict[str, Any]:
                 "treat_board_fallback_as_primary_price_limit_authority",
                 "redefine_order_tradability_or_limit_checks",
                 "redefine_order_fill_amount_or_clip_sequence",
+                "redefine_market_impact_or_cost_ratio",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -87,6 +108,7 @@ def _valid_contract() -> dict[str, Any]:
                 "cash_settlement_semantics",
                 "order_tradability_semantics",
                 "order_fill_amount_semantics",
+                "market_impact_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -118,6 +140,7 @@ def _valid_contract() -> dict[str, Any]:
                 "universe_membership_semantics",
                 "trading_calendar_semantics",
                 "transaction_cost_semantics",
+                "market_impact_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
                 "price_adjustment_semantics",
@@ -351,6 +374,7 @@ def _valid_contract() -> dict[str, Any]:
                 "cost_rule": "trade_cost_recomputed_after_final_deal_amount",
                 "rdagent_rule": "describe_only_do_not_redefine_order_fill_amount_or_clip_sequence",
             },
+            "market_impact_semantics": _market_impact_semantics(),
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -496,6 +520,7 @@ def _valid_contract() -> dict[str, Any]:
             "universe_membership_semantics",
             "trading_calendar_semantics",
             "transaction_cost_semantics",
+            "market_impact_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
             "price_adjustment_semantics",
@@ -563,6 +588,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "treat_board_fallback_as_primary_price_limit_authority" in boundary["rdagent_forbidden_actions"]
     assert "redefine_order_tradability_or_limit_checks" in boundary["rdagent_forbidden_actions"]
     assert "redefine_order_fill_amount_or_clip_sequence" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_market_impact_or_cost_ratio" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -573,6 +599,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "universe_membership_semantics",
         "trading_calendar_semantics",
         "transaction_cost_semantics",
+        "market_impact_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -642,6 +669,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         context["prompt_projection_payload"]["transaction_cost_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_transaction_cost_model"
     )
+    assert context["prompt_projection_payload"]["market_impact_semantics"] == _market_impact_semantics()
     assert (
         context["prompt_projection_payload"]["suspension_tradability_semantics"]["non_tradable_rule"]
         == "suspended_rows_are_not_buyable_or_sellable"
@@ -915,6 +943,14 @@ def test_malformed_qlib_prompt_projection_without_transaction_cost_semantics_fai
     del contract["prompt_projection_payload"]["transaction_cost_semantics"]
 
     with pytest.raises(QlibAshareSemanticContractError, match="transaction_cost_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_market_impact_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["market_impact_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="market_impact_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1205,6 +1241,34 @@ def test_malformed_qlib_prompt_projection_with_numeric_transaction_cost_values_f
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_market_impact_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["market_impact_semantics"][
+        "runtime_authority"
+    ] = "rdagent.market_impact.Model"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="market_impact_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_market_impact_ratio_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["market_impact_semantics"][
+        "impact_cost_ratio_rule"
+    ] = "rdagent_estimates_impact_cost_from_prompt_capacity"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="market_impact_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_market_impact_cost_exposure_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["market_impact_semantics"]["numeric_value_exposure"] = "prompt_projection"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="market_impact_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
@@ -1388,6 +1452,17 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "transaction-cost buy components: commission, minimum_commission_floor" in text
     assert "transaction-cost sell components: commission, stamp_tax, minimum_commission_floor" in text
     assert "transaction-cost values: runtime_handoff_only_not_prompt_projection" in text
+    assert "market-impact authority: pyqlib (qlib.backtest.exchange.Exchange._calc_trade_info_by_order)" in text
+    assert "market-impact parameter: impact_cost" in text
+    assert (
+        "market-impact ratio rule: impact_cost_times_post_volume_clip_trade_value_over_total_trade_value_squared"
+        in text
+    )
+    assert "market-impact missing-volume rule: missing_zero_or_nan_total_trade_value_uses_raw_impact_cost_ratio" in text
+    assert (
+        "market-impact final cost rule: trade_cost_is_recomputed_after_final_deal_amount_with_adjusted_cost_ratio"
+        in text
+    )
     assert (
         "suspension authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits)"
@@ -1475,7 +1550,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
-        "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
+        "market_impact_semantics, suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
         "price_limit_semantics, order_tradability_semantics, order_fill_amount_semantics, settlement_semantics, "
         "cash_settlement_semantics, cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, "
         "settlement_rule, same_day_sell_policy, "
