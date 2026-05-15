@@ -10,6 +10,28 @@ REQUIRED_QLIB_PROMPT_PROJECTION_ID = "qlib_joinquant_ashare_prompt_projection_v1
 REQUIRED_QLIB_PROMPT_PROJECTION_SCHEMA_VERSION = "qlib_ashare_prompt_projection.v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"
+QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
+QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
+    "1day.excess_return_without_cost.annualized_return",
+    "1day.excess_return_without_cost.max_drawdown",
+)
+QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS = (
+    "1day.excess_return_with_cost.annualized_return",
+    "1day.excess_return_with_cost.max_drawdown",
+)
+QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS = (
+    "1day.excess_return_with_cost.annualized_return",
+    "1day.excess_return_with_cost.information_ratio",
+    "1day.excess_return_with_cost.max_drawdown",
+)
+QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS = QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS
+QLIB_ASHARE_PROMPT_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)
+QLIB_ASHARE_FEEDBACK_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)
+QLIB_ASHARE_BANDIT_METRIC_PATHS = (
+    *QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
+)
+QLIB_ASHARE_UI_SELECTED_METRICS = ("IC", *QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS)
 
 
 class QlibAshareSemanticContractError(RuntimeError):
@@ -242,6 +264,16 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in portfolio_risk.get("risk_metric_fields", [])),
             "- portfolio-risk consumed paths: "
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_consumed_metric_paths", [])),
+            f"- portfolio-risk metric path format: {portfolio_risk.get('metric_path_format')}",
+            f"- portfolio-risk metric path whitespace rule: {portfolio_risk.get('metric_path_whitespace_rule')}",
+            "- portfolio-risk prompt paths: "
+            + ", ".join(str(item) for item in portfolio_risk.get("rdagent_prompt_metric_paths", [])),
+            "- portfolio-risk feedback paths: "
+            + ", ".join(str(item) for item in portfolio_risk.get("rdagent_feedback_metric_paths", [])),
+            "- portfolio-risk bandit paths: "
+            + ", ".join(str(item) for item in portfolio_risk.get("rdagent_bandit_metric_paths", [])),
+            "- portfolio-risk UI paths: "
+            + ", ".join(str(item) for item in portfolio_risk.get("rdagent_ui_metric_paths", [])),
             f"- portfolio-risk annualization scaler: {portfolio_risk.get('day_annualization_scaler')}",
             f"- portfolio-risk max drawdown rule: {portfolio_risk.get('max_drawdown_rule')}",
             f"- benchmark-return authority: pyqlib ({benchmark_return.get('benchmark_calculation_authority')})",
@@ -1279,6 +1311,14 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "annualized_return_rule",
         "information_ratio_rule",
         "max_drawdown_rule",
+        "metric_path_format",
+        "metric_path_frequency",
+        "metric_path_whitespace_rule",
+        "metric_path_report_type_rule",
+        "rdagent_prompt_metric_paths",
+        "rdagent_feedback_metric_paths",
+        "rdagent_bandit_metric_paths",
+        "rdagent_ui_metric_paths",
         "rdagent_consumed_metric_paths",
         "rdagent_rule",
     ):
@@ -1311,9 +1351,17 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "annualized_return_rule": "sum_mode_annualized_return_equals_mean_times_annualization_scaler",
         "information_ratio_rule": "information_ratio_equals_mean_over_std_times_square_root_annualization_scaler",
         "max_drawdown_rule": "sum_mode_max_drawdown_equals_min_of_cumulative_return_minus_running_cumulative_max",
+        "metric_path_format": "{freq}.{report_type}.{risk_metric}",
+        "metric_path_frequency": "1day",
+        "metric_path_whitespace_rule": "metric_paths_are_exact_without_leading_or_trailing_whitespace",
+        "metric_path_report_type_rule": "prompt_context_uses_without_cost_and_feedback_bandit_ui_use_with_cost",
+        "rdagent_prompt_metric_paths": list(QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS),
+        "rdagent_feedback_metric_paths": list(QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS),
+        "rdagent_bandit_metric_paths": list(QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS),
+        "rdagent_ui_metric_paths": list(QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS),
         "rdagent_consumed_metric_paths": [
-            "1day.excess_return_without_cost.annualized_return",
-            "1day.excess_return_without_cost.max_drawdown",
+            *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
+            *QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
         ],
         "rdagent_rule": "describe_only_do_not_redefine_portfolio_risk_analysis_metrics",
     }
