@@ -50,6 +50,12 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
 QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE = "user_or_provider_supplied_non_price_volume_fields_must_name_source_owner_field_identity_and_daily_point_in_time_validity"
+QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE = (
+    "turnover_is_not_a_default_factor_input_field_even_when_qlib_reports_portfolio_turnover"
+)
+QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE = (
+    "report_turnover_is_post_backtest_portfolio_metric_not_default_factor_input_field"
+)
 QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES = (
     "turnover",
     "minute_level_high_frequency_data",
@@ -357,6 +363,7 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_consumed_metric_paths", [])),
             f"- portfolio-risk metric path format: {portfolio_risk.get('metric_path_format')}",
             f"- portfolio-risk metric path whitespace rule: {portfolio_risk.get('metric_path_whitespace_rule')}",
+            f"- portfolio-risk turnover metric rule: {portfolio_risk.get('turnover_report_metric_rule')}",
             "- portfolio-risk prompt paths: "
             + ", ".join(str(item) for item in portfolio_risk.get("rdagent_prompt_metric_paths", [])),
             "- portfolio-risk feedback paths: "
@@ -410,6 +417,7 @@ def format_rd_agent_ashare_semantic_context(
             "- research data-source forbidden defaults: "
             + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
             f"- research data-source PIT registration: {research_data_source.get('point_in_time_registration_rule')}",
+            f"- research data-source turnover input boundary: {research_data_source.get('turnover_input_boundary_rule')}",
             f"- research data-source rule: {research_data_source.get('rdagent_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
@@ -1554,6 +1562,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "recorder_metric_rule",
         "default_frequency_rule",
         "required_report_columns",
+        "turnover_report_metric_rule",
         "report_type_fields",
         "excess_without_cost_rule",
         "excess_with_cost_rule",
@@ -1594,6 +1603,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "recorder_metric_rule": "risk_metrics_are_logged_as_{freq}.{report_type}.{risk_metric}",
         "default_frequency_rule": "missing_risk_analysis_freq_uses_first_executor_portfolio_metric_frequency",
         "required_report_columns": ["return", "bench", "cost", "turnover"],
+        "turnover_report_metric_rule": QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE,
         "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
         "excess_without_cost_rule": "report_return_minus_benchmark",
         "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
@@ -1901,6 +1911,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         ),
         "point_in_time_registration_rule": QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
+        "turnover_input_boundary_rule": QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
         "rdagent_rule": "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources",

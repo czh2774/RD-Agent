@@ -40,6 +40,8 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
     QLIB_ASHARE_TEMPLATE_BENCHMARK,
     QLIB_ASHARE_TEMPLATE_MARKET,
+    QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
+    QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE,
     QLIB_ASHARE_UI_SELECTED_METRICS,
     QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS,
     QlibAshareSemanticContractError,
@@ -357,6 +359,7 @@ def _portfolio_risk_semantics() -> dict[str, Any]:
         "recorder_metric_rule": "risk_metrics_are_logged_as_{freq}.{report_type}.{risk_metric}",
         "default_frequency_rule": "missing_risk_analysis_freq_uses_first_executor_portfolio_metric_frequency",
         "required_report_columns": ["return", "bench", "cost", "turnover"],
+        "turnover_report_metric_rule": QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE,
         "report_type_fields": ["excess_return_without_cost", "excess_return_with_cost"],
         "excess_without_cost_rule": "report_return_minus_benchmark",
         "excess_with_cost_rule": "report_return_minus_benchmark_minus_cost",
@@ -527,6 +530,7 @@ def _research_data_source_semantics() -> dict[str, Any]:
         ),
         "point_in_time_registration_rule": QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
+        "turnover_input_boundary_rule": QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
         "rdagent_rule": "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources",
@@ -1520,6 +1524,7 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
         assert "containing open close high low volume vwap in each minute" not in prompt_text
         assert "Do not assume turnover, minute-level high-frequency data" in prompt_text
         assert "Do not treat turnover, minute-level high-frequency data" in prompt_text
+        assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in prompt_text
         assert "analyst consensus expectation factors" in prompt_text
 
 
@@ -1689,6 +1694,7 @@ def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder(
     for forbidden_source in QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES:
         assert forbidden_source in boundary
     assert QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE in boundary
+    assert QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE in boundary
     assert "turnover" in boundary
 
     factor_task_source = (REPO_ROOT / "rdagent/components/coder/factor_coder/factor.py").read_text()
@@ -1732,7 +1738,8 @@ def test_rd_agent_factor_coder_prompts_enforce_qlib_source_boundary_as_non_bypas
 
     implementation_prompt = _read_prompt_block(coder_prompt, "evolving_strategy_factor_implementation_v1_system")
     assert "intraday or minute data" in implementation_prompt
-    assert "turnover" in implementation_prompt
+    assert "turnover as a factor input field" in implementation_prompt
+    assert "Qlib portfolio-report turnover is a post-backtest metric" in implementation_prompt
     assert "consensus data" in implementation_prompt
 
     selector_prompt = _read_prompt_block(coder_prompt, "select_implementable_factor_system")
@@ -1753,6 +1760,7 @@ def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields(
         "Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, "
         "or unregistered external vendor fields as default Qlib inputs."
     ) in prompt_text
+    assert "Turnover may appear as a Qlib post-backtest portfolio report metric" in prompt_text
     assert (
         "Every factor description, formulation, and variables map must bind the factor to Qlib registered daily "
         "A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`)"
@@ -2658,6 +2666,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_portfolio_risk_scaler_fai
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_turnover_report_metric_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["portfolio_risk_semantics"][
+        "turnover_report_metric_rule"
+    ] = "turnover_is_a_default_factor_input_and_report_metric"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="portfolio_risk_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_portfolio_metric_paths_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["portfolio_risk_semantics"]["rdagent_consumed_metric_paths"] = [
@@ -2876,6 +2894,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_pit_registration_rule_fai
     contract["prompt_projection_payload"]["research_data_source_semantics"][
         "point_in_time_registration_rule"
     ] = "rdagent_may_infer_point_in_time_fields_from_factor_text"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_turnover_input_boundary_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"][
+        "turnover_input_boundary_rule"
+    ] = "turnover_is_a_default_factor_input_when_portfolio_reports_turnover"
 
     with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
@@ -3270,6 +3298,8 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "research data-source forbidden defaults: " f"{', '.join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)}"
     ) in text
     assert f"research data-source PIT registration: {QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE}" in text
+    assert f"research data-source turnover input boundary: {QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE}" in text
+    assert f"portfolio-risk turnover metric rule: {QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE}" in text
     assert (
         "research data-source rule: " "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources"
     ) in text
