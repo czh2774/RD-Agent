@@ -95,6 +95,7 @@ def _valid_contract() -> dict[str, Any]:
                 "market_semantics.authoritative_limit_fields",
                 "price_limit_semantics",
                 "settlement_semantics",
+                "order_unit_semantics",
             ],
             "rdagent_prompt_forbidden_fields": [
                 "runtime_surfaces.policy_defaults",
@@ -159,6 +160,18 @@ def _valid_contract() -> dict[str, Any]:
                 "position_type": "AsharePosition",
                 "runtime_authority": "qlib.backtest.position.AsharePosition",
                 "rdagent_rule": "describe_only_do_not_redefine_position_or_settlement",
+            },
+            "order_unit_semantics": {
+                "semantic_name": "a_share_round_lot",
+                "qlib_parameter": "trade_unit",
+                "trade_unit": 100,
+                "amount_unit": "share",
+                "buy_rounding_rule": "round_buy_amount_down_to_trade_unit_after_cash_and_volume_limits",
+                "sell_rounding_rule": "round_sell_amount_down_to_trade_unit_except_full_liquidation",
+                "full_liquidation_rule": "sell_all_remaining_position_without_round_lot_residual",
+                "factor_adjustment_rule": "apply_order_factor_when_trade_uses_unadjusted_prices",
+                "runtime_authority": "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit",
+                "rdagent_rule": "describe_only_do_not_redefine_trade_unit_or_round_lot_policy",
             },
         },
         "runtime_handoff_contract": {
@@ -295,6 +308,11 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         context["prompt_projection_payload"]["settlement_semantics"]["same_day_sell_policy"]
         == "shares_bought_today_are_unsellable_until_day_commit"
     )
+    assert context["prompt_projection_payload"]["order_unit_semantics"]["trade_unit"] == 100
+    assert (
+        context["prompt_projection_payload"]["order_unit_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_trade_unit_or_round_lot_policy"
+    )
     assert "qlib_market_semantics" not in context
     assert "runtime_surfaces" not in context
 
@@ -390,6 +408,14 @@ def test_malformed_qlib_prompt_projection_without_price_limit_semantics_fails_cl
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_order_unit_semantics_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["order_unit_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_unit_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_price_limit_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["price_limit_semantics"]["rdagent_rule"] = "rdagent_may_override_price_limits"
@@ -403,6 +429,14 @@ def test_malformed_qlib_prompt_projection_with_mutable_settlement_rule_fails_clo
     contract["prompt_projection_payload"]["settlement_semantics"]["rdagent_rule"] = "rdagent_may_override_settlement"
 
     with pytest.raises(QlibAshareSemanticContractError, match="settlement_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_unit_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_unit_semantics"]["rdagent_rule"] = "rdagent_may_override_round_lots"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_unit_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -430,6 +464,10 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "price-limit fallback: runtime_compatibility_only_when_authoritative_fields_are_absent" in text
     assert "settlement authority: pyqlib (t_plus_1_stock)" in text
     assert "same-day sell policy: shares_bought_today_are_unsellable_until_day_commit" in text
+    assert "round-lot authority: pyqlib (100 share)" in text
+    assert "round-lot buy rule: round_buy_amount_down_to_trade_unit_after_cash_and_volume_limits" in text
+    assert "round-lot sell rule: round_sell_amount_down_to_trade_unit_except_full_liquidation" in text
+    assert "round-lot full liquidation: sell_all_remaining_position_without_round_lot_residual" in text
     assert (
         "RD-Agent must not redefine: trade_unit, position_type, settlement_rule, same_day_sell_policy, "
         "price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
