@@ -10,6 +10,16 @@ REQUIRED_QLIB_PROMPT_PROJECTION_ID = "qlib_joinquant_ashare_prompt_projection_v1
 REQUIRED_QLIB_PROMPT_PROJECTION_SCHEMA_VERSION = "qlib_ashare_prompt_projection.v1"
 QLIB_ASHARE_AUTHORITY_COMPONENT = "qlib.backtest.ashare_semantics"
 RDAGENT_ASHARE_CONSUMER_COMPONENT = "rdagent.scenarios.qlib.ashare_semantics"
+QLIB_ASHARE_LABEL_COLUMN = "LABEL0"
+QLIB_ASHARE_LABEL_EXPRESSION = "Ref($close, -2)/Ref($close, -1) - 1"
+QLIB_ASHARE_LABEL_TEMPLATE_PATHS = (
+    "rdagent/scenarios/qlib/experiment/factor_template/conf_baseline.yaml",
+    "rdagent/scenarios/qlib/experiment/factor_template/conf_combined_factors.yaml",
+    "rdagent/scenarios/qlib/experiment/factor_template/conf_combined_factors_sota_model.yaml",
+    "rdagent/scenarios/qlib/experiment/model_template/conf_baseline_factors_model.yaml",
+    "rdagent/scenarios/qlib/experiment/model_template/conf_sota_factors_model.yaml",
+)
+QLIB_ASHARE_LABEL_PROMPT_PATHS = ("rdagent/scenarios/qlib/experiment/prompts.yaml",)
 QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
 QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
     "1day.excess_return_without_cost.annualized_return",
@@ -161,6 +171,7 @@ def format_rd_agent_ashare_semantic_context(
     trade_indicator = _mapping(prompt_payload.get("trade_indicator_semantics"))
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
+    supervised_label = _mapping(prompt_payload.get("supervised_label_semantics"))
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     portfolio_risk = _mapping(prompt_payload.get("portfolio_risk_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
@@ -252,6 +263,11 @@ def format_rd_agent_ashare_semantic_context(
             f"- strategy-order prediction window: {strategy_order.get('prediction_window_rule')}",
             f"- strategy-order dropout rule: {strategy_order.get('dropout_rule')}",
             f"- strategy-order order return rule: {strategy_order.get('target_order_return_rule')}",
+            f"- supervised-label authority: pyqlib ({supervised_label.get('handler_authority')})",
+            f"- supervised-label column: {supervised_label.get('label_column')}",
+            f"- supervised-label expression: {supervised_label.get('label_expression')}",
+            f"- supervised-label horizon: {supervised_label.get('label_horizon_rule')}",
+            f"- supervised-label prompt wording: {supervised_label.get('prompt_wording_rule')}",
             f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
             f"- signal-ic calculation: pyqlib ({signal_ic.get('ic_calculation_authority')})",
             "- signal-ic metrics: " + ", ".join(str(item) for item in signal_ic.get("metric_fields", [])),
@@ -429,6 +445,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_trade_execution_indicators_or_quality_metrics",
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_strategy_signal_to_order_generation",
+        "redefine_supervised_label_expression_or_horizon",
         "redefine_signal_ic_or_rank_ic_metrics",
         "redefine_portfolio_risk_analysis_metrics",
         "redefine_benchmark_return_series_or_default_benchmark",
@@ -482,6 +499,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "supervised_label_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
@@ -520,6 +538,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "supervised_label_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",
@@ -1220,6 +1239,58 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if strategy_order.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"strategy_order_semantics must preserve {key}"
+            )
+    supervised_label = _mapping(prompt_payload.get("supervised_label_semantics"))
+    for key in (
+        "semantic_name",
+        "handler_authority",
+        "handler360_authority",
+        "loader_authority",
+        "processor_authority",
+        "label_group",
+        "label_column",
+        "label_expression",
+        "label_expression_source",
+        "label_horizon_rule",
+        "prediction_execution_alignment_rule",
+        "dropna_processor_rule",
+        "template_binding_rule",
+        "prompt_wording_rule",
+        "rdagent_template_paths",
+        "rdagent_prompt_paths",
+        "rdagent_rule",
+    ):
+        if key not in supervised_label:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload supervised_label_semantics must include {key}"
+            )
+    expected_supervised_label_values = {
+        "semantic_name": "a_share_supervised_forward_return_label",
+        "handler_authority": "qlib.contrib.data.handler.Alpha158",
+        "handler360_authority": "qlib.contrib.data.handler.Alpha360",
+        "loader_authority": "qlib.contrib.data.loader.Alpha158DL",
+        "processor_authority": "qlib.data.dataset.processor.DropnaLabel",
+        "label_group": "label",
+        "label_column": QLIB_ASHARE_LABEL_COLUMN,
+        "label_expression": QLIB_ASHARE_LABEL_EXPRESSION,
+        "label_expression_source": "Alpha158.get_label_config_and_Alpha360.get_label_config",
+        "label_horizon_rule": "label_at_datetime_t_is_close_t_plus_2_over_close_t_plus_1_minus_one",
+        "prediction_execution_alignment_rule": (
+            "label_horizon_matches_strategy_previous_step_signal_execution_without_same_day_fill_assumption"
+        ),
+        "dropna_processor_rule": "DropnaLabel_removes_missing_LABEL0_rows_before_training_or_evaluation",
+        "template_binding_rule": "rdagent_templates_must_use_LABEL0_and_the_qlib_owned_label_expression",
+        "prompt_wording_rule": (
+            "describe_as_qlib_contract_defined_forward_return_label_not_undefined_next_several_days_return"
+        ),
+        "rdagent_template_paths": list(QLIB_ASHARE_LABEL_TEMPLATE_PATHS),
+        "rdagent_prompt_paths": list(QLIB_ASHARE_LABEL_PROMPT_PATHS),
+        "rdagent_rule": "describe_only_do_not_redefine_supervised_label_expression_or_horizon",
+    }
+    for key, expected_value in expected_supervised_label_values.items():
+        if supervised_label.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"supervised_label_semantics must preserve {key}"
             )
     signal_ic = _mapping(prompt_payload.get("signal_ic_semantics"))
     for key in (
@@ -2186,6 +2257,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trade_indicator_semantics",
         "executor_decision_semantics",
         "strategy_order_semantics",
+        "supervised_label_semantics",
         "signal_ic_semantics",
         "portfolio_risk_semantics",
         "benchmark_return_semantics",

@@ -12,7 +12,7 @@ qlib_quant_background: |-
 qlib_factor_background: |-
   The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
   Each number in the factor represents a physics value to an instrument on a day.
-  User will train a model to predict the next several days return based on the factor values of the previous days.
+  User will train a model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values of the previous days.
   The factor is defined in the following parts:
   1. Name: The name of the factor.
   2. Description: The description of the factor.
@@ -95,11 +95,11 @@ qlib_factor_output_format: |-
               SZ000776      0.002459
 
 qlib_factor_simulator: |-
-  The factors will be sent into Qlib to train a model to predict the next several days return based on the factor values of the previous days. 
+  The factors will be sent into Qlib to train a model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values of the previous days.
   Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms. including supervised learning, market dynamics modeling, and RL.
   User will use Qlib to automatically do the following things:
   1. generate a new factor table based on the factor values.
-  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next several days return based on the factor values.
+  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. build a portfolio based on the predicted return based on a strategy.
   4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
 
@@ -227,7 +227,7 @@ qlib_model_simulator: |-
   Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms, including supervised learning, market dynamics modeling, and reinforcement learning (RL).
   User will use Qlib to automatically perform the following tasks:
   1. Generate a baseline factor table.
-  2. Train the model defined in your class Net to predict the next several days' returns based on the factor values.
+  2. Train the model defined in your class Net to predict the Qlib contract-defined LABEL0 forward return (`Ref($close, -2)/Ref($close, -1) - 1`) based on the factor values.
   3. Build a portfolio based on the predicted returns using a specific strategy.
   4. Evaluate the portfolio's performance, including metrics such as return, IC, max drawdown, and others.
   5. Iterate on growing the hypothesis to enable model improvements based on performance evaluations and feedback.
