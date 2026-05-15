@@ -49,6 +49,7 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
 }
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
+QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE = "user_or_provider_supplied_non_price_volume_fields_must_name_source_owner_field_identity_and_daily_point_in_time_validity"
 QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES = (
     "turnover",
     "minute_level_high_frequency_data",
@@ -408,6 +409,7 @@ def format_rd_agent_ashare_semantic_context(
             + ", ".join(str(item) for item in research_data_source.get("primary_price_volume_fields", [])),
             "- research data-source forbidden defaults: "
             + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
+            f"- research data-source PIT registration: {research_data_source.get('point_in_time_registration_rule')}",
             f"- research data-source rule: {research_data_source.get('rdagent_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
@@ -1897,6 +1899,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "point_in_time_rule": (
             "non_price_volume_fields_are_allowed_only_when_user_or_provider_supplies_daily_point_in_time_data"
         ),
+        "point_in_time_registration_rule": QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),

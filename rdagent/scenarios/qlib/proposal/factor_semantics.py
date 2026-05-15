@@ -6,6 +6,7 @@ from typing import Any
 
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES,
+    QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS,
 )
 
@@ -31,9 +32,11 @@ _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN = re.compile(
     r"\b(daily point[- ]in[- ]time|point[- ]in[- ]time)\b",
     re.IGNORECASE,
 )
+_FACTOR_POINT_IN_TIME_SOURCE_OWNER_PATTERN = re.compile(r"\b(user|provider|source owner)\b", re.IGNORECASE)
+_FACTOR_POINT_IN_TIME_FIELD_IDENTITY_PATTERN = re.compile(r"\b(field identity|field name|field)\b", re.IGNORECASE)
+_FACTOR_POINT_IN_TIME_VALIDITY_PATTERN = re.compile(r"\b(validity|valid|available|availability)\b", re.IGNORECASE)
 _FACTOR_MARKET_DATA_HINT_PATTERNS = (
     _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN,
-    _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN,
     re.compile(r"\b(price-volume|price volume|momentum|reversal|volatility|price)\b", re.IGNORECASE),
     re.compile(r"\b(alpha|factor|signal|ts_code)\b", re.IGNORECASE),
 )
@@ -46,12 +49,24 @@ _FACTOR_FORBIDDEN_DEFAULT_SOURCE_PATTERNS = (
 
 
 def _text_has_qlib_daily_data_hint(text: str) -> bool:
-    return any(pattern.search(text) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS)
+    return any(pattern.search(text) for pattern in _FACTOR_MARKET_DATA_HINT_PATTERNS) or (
+        _text_has_registered_point_in_time_source_hint(text)
+    )
+
+
+def _text_has_registered_point_in_time_source_hint(text: str) -> bool:
+    if not _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN.search(text):
+        return False
+    return bool(
+        _FACTOR_POINT_IN_TIME_SOURCE_OWNER_PATTERN.search(text)
+        and _FACTOR_POINT_IN_TIME_FIELD_IDENTITY_PATTERN.search(text)
+        and _FACTOR_POINT_IN_TIME_VALIDITY_PATTERN.search(text)
+    )
 
 
 def _text_has_concrete_qlib_source_hint(text: str) -> bool:
     return bool(
-        _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN.search(text) or _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN.search(text)
+        _FACTOR_QLIB_DAILY_DATA_HINT_PATTERN.search(text) or _text_has_registered_point_in_time_source_hint(text)
     )
 
 
@@ -64,12 +79,23 @@ def _raise_forbidden_default_source_error(text: str, *, subject: str) -> None:
         )
 
 
+def _raise_unregistered_point_in_time_source_error(text: str, *, subject: str) -> None:
+    if _FACTOR_DAILY_POINT_IN_TIME_DATA_HINT_PATTERN.search(
+        text
+    ) and not _text_has_registered_point_in_time_source_hint(text):
+        raise ValueError(
+            f"{subject} must stay within the Qlib daily A-share research data boundary; user/provider supplied "
+            "daily point-in-time fields require source owner, field identity, and daily point-in-time validity."
+        )
+
+
 def build_qlib_ashare_factor_task_source_boundary() -> str:
     allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
     forbidden_sources = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)
     return (
         "Qlib daily A-share research data boundary: use only registered daily Qlib fields "
-        f"({allowed_fields}) or explicitly supplied daily point-in-time fields. "
+        f"({allowed_fields}) or explicitly supplied daily point-in-time fields that satisfy "
+        f"{QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE}. "
         f"Forbidden default sources: {forbidden_sources}. "
         "Do not infer unregistered fields during factor implementation or code review."
     )
@@ -123,11 +149,12 @@ def validate_qlib_factor_hypothesis_response(
             "Qlib factor hypotheses must include a concrete market-data factor idea rather than generic screening language."
         )
     _raise_forbidden_default_source_error(combined_text, subject="Qlib factor hypotheses")
+    _raise_unregistered_point_in_time_source_error(combined_text, subject="Qlib factor hypotheses")
     if not _text_has_qlib_daily_data_hint(hypothesis):
         allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
         raise ValueError(
             "Qlib factor hypotheses must include concrete market-data alpha directions grounded in "
-            f"registered daily Qlib A-share fields ({allowed_fields}) or explicitly supplied daily point-in-time fields."
+            f"registered daily Qlib A-share fields ({allowed_fields}) or explicitly registered daily point-in-time fields."
         )
     return normalized
 
@@ -158,11 +185,12 @@ def validate_qlib_factor_experiment_response(payload: dict[str, Any]) -> dict[st
             [factor_name, description, formulation] + [f"{key}: {value}" for key, value in variables.items()]
         )
         _raise_forbidden_default_source_error(combined_text, subject="Qlib factor experiment outputs")
+        _raise_unregistered_point_in_time_source_error(combined_text, subject="Qlib factor experiment outputs")
         if not _text_has_concrete_qlib_source_hint(combined_text):
             allowed_fields = ", ".join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)
             raise ValueError(
                 f"Qlib factor experiment output for {factor_name!r} must bind its description, formulation, "
-                f"and variables to registered daily Qlib A-share fields ({allowed_fields}) or explicitly supplied "
+                f"and variables to registered daily Qlib A-share fields ({allowed_fields}) or explicitly registered "
                 "daily point-in-time fields."
             )
 

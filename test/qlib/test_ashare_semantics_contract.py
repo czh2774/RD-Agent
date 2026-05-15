@@ -25,6 +25,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
     QLIB_ASHARE_LABEL_TEMPLATE_PATHS,
+    QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS,
@@ -524,6 +525,7 @@ def _research_data_source_semantics() -> dict[str, Any]:
         "point_in_time_rule": (
             "non_price_volume_fields_are_allowed_only_when_user_or_provider_supplies_daily_point_in_time_data"
         ),
+        "point_in_time_registration_rule": QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
         "forbidden_default_prompt_sources": list(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES),
         "frequency_rule": "rdagent_factor_extraction_prompts_must_not_advertise_minute_or_intraday_data_as_default",
         "rdagent_prompt_paths": list(QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS),
@@ -1512,6 +1514,7 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
             assert field in prompt_text
         assert "Alpha158/Alpha360" in prompt_text
         assert "daily point-in-time" in prompt_text
+        assert "source owner, field identity, and daily point-in-time validity" in prompt_text
         assert "High-Frequency Data:" not in prompt_text
         assert "Consensus Expectations Factor" not in prompt_text
         assert "containing open close high low volume vwap in each minute" not in prompt_text
@@ -1563,6 +1566,17 @@ def test_rd_agent_factor_proposal_validator_uses_qlib_daily_research_data_bounda
     )
     assert accepted["hypothesis"].startswith("Use close-to-vwap")
 
+    registered_pit = validate_qlib_factor_hypothesis_response(
+        {
+            "hypothesis": "Use provider supplied daily point-in-time industry field to form an industry concentration signal.",
+            "reason": (
+                "The provider names source owner, field identity, and daily point-in-time validity before RD-Agent "
+                "uses the field."
+            ),
+        }
+    )
+    assert "provider supplied daily point-in-time" in registered_pit["hypothesis"]
+
     forbidden_payloads = [
         {
             "hypothesis": "Use analyst consensus revisions to predict close-to-close reversal.",
@@ -1575,6 +1589,10 @@ def test_rd_agent_factor_proposal_validator_uses_qlib_daily_research_data_bounda
         {
             "hypothesis": "Use turnover acceleration as the primary A-share liquidity factor.",
             "reason": "Turnover is not part of the default Qlib daily research data boundary.",
+        },
+        {
+            "hypothesis": "Use point-in-time industry membership to neutralize daily momentum.",
+            "reason": "Industry classification is point-in-time but the source owner and field identity are unspecified.",
         },
     ]
     for payload in forbidden_payloads:
@@ -1598,6 +1616,22 @@ def test_rd_agent_factor_experiment_validator_uses_qlib_daily_research_data_boun
     )
     assert accepted["close_vwap_reversal"]["variables"]["$close"] == "Qlib registered daily close field."
 
+    registered_pit = validate_qlib_factor_experiment_response(
+        {
+            "provider_industry_concentration": {
+                "description": "[Industry Factor] Provider supplied daily point-in-time industry concentration.",
+                "formulation": r"factor_t = industry_concentration_t",
+                "variables": {
+                    "industry_concentration_t": (
+                        "Provider supplied daily point-in-time industry field with source owner, field identity, "
+                        "and daily point-in-time validity."
+                    ),
+                },
+            }
+        }
+    )
+    assert "provider_industry_concentration" in registered_pit
+
     forbidden_payloads = [
         {
             "turnover_acceleration": {
@@ -1618,6 +1652,13 @@ def test_rd_agent_factor_experiment_validator_uses_qlib_daily_research_data_boun
                 "description": "[Expectation Factor] Use analyst consensus expectation revisions.",
                 "formulation": r"factor_t = consensus_eps_t - consensus_eps_{t-20}",
                 "variables": {"consensus_eps": "Analyst consensus EPS expectation."},
+            }
+        },
+        {
+            "unregistered_industry_neutral": {
+                "description": "[Industry Factor] Use point-in-time industry membership.",
+                "formulation": r"factor_t = industry_member_t",
+                "variables": {"industry_member_t": "Daily point-in-time industry field."},
             }
         },
     ]
@@ -1647,6 +1688,7 @@ def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder(
         assert field in boundary
     for forbidden_source in QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES:
         assert forbidden_source in boundary
+    assert QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE in boundary
     assert "turnover" in boundary
 
     factor_task_source = (REPO_ROOT / "rdagent/components/coder/factor_coder/factor.py").read_text()
@@ -1706,6 +1748,7 @@ def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields(
     assert (
         "Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`)" in prompt_text
     )
+    assert "source owner, field identity, and daily point-in-time validity" in prompt_text
     assert (
         "Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, "
         "or unregistered external vendor fields as default Qlib inputs."
@@ -2820,6 +2863,24 @@ def test_malformed_qlib_prompt_projection_with_intraday_research_data_source_fai
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_pit_registration_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["research_data_source_semantics"]["point_in_time_registration_rule"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_pit_registration_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"][
+        "point_in_time_registration_rule"
+    ] = "rdagent_may_infer_point_in_time_fields_from_factor_text"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_consensus_research_default_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["research_data_source_semantics"]["forbidden_default_prompt_sources"] = [
@@ -3208,6 +3269,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert (
         "research data-source forbidden defaults: " f"{', '.join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)}"
     ) in text
+    assert f"research data-source PIT registration: {QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE}" in text
     assert (
         "research data-source rule: " "describe_only_use_qlib_registered_daily_or_user_supplied_point_in_time_sources"
     ) in text
