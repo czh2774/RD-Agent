@@ -31,7 +31,7 @@ def _valid_contract() -> dict[str, Any]:
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
                 "but it must not redefine universe-membership, trading-calendar/data-frequency, trade unit, position, execution-price, "
                 "price-adjustment, "
-                "suspension/tradability, price-limit, settlement, cash-settlement, cash/shorting, liquidity/capacity, or cost semantics."
+                "suspension/tradability, price-limit, order-tradability, settlement, cash-settlement, cash/shorting, liquidity/capacity, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -57,6 +57,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_trade_unit_or_position_type",
                 "redefine_price_limit_thresholds_or_authoritative_fields",
                 "treat_board_fallback_as_primary_price_limit_authority",
+                "redefine_order_tradability_or_limit_checks",
                 "redefine_settlement_or_sellable_position_state",
                 "redefine_cash_settlement_or_sell_proceeds_availability",
                 "redefine_cash_buying_power_or_shorting_policy",
@@ -83,6 +84,7 @@ def _valid_contract() -> dict[str, Any]:
                 "runtime_surfaces",
                 "universe_membership_semantics",
                 "cash_settlement_semantics",
+                "order_tradability_semantics",
                 "rdagent_must_not_redefine",
             ],
             "rdagent_required_evidence_fields": [
@@ -118,6 +120,7 @@ def _valid_contract() -> dict[str, Any]:
                 "execution_price_semantics",
                 "price_adjustment_semantics",
                 "price_limit_semantics",
+                "order_tradability_semantics",
                 "settlement_semantics",
                 "cash_settlement_semantics",
                 "cash_constraint_semantics",
@@ -304,6 +307,21 @@ def _valid_contract() -> dict[str, Any]:
                 "runtime_authority": "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits",
                 "rdagent_rule": "describe_only_do_not_redefine_price_limit_thresholds_or_fields",
             },
+            "order_tradability_semantics": {
+                "semantic_name": "a_share_order_tradability_gate",
+                "runtime_authority": "qlib.backtest.exchange.Exchange.check_order",
+                "tradability_authority": "qlib.backtest.exchange.Exchange.is_stock_tradable",
+                "suspension_authority": "qlib.backtest.exchange.Exchange.check_stock_suspended",
+                "price_limit_authority": "qlib.backtest.exchange.Exchange.check_stock_limit",
+                "failure_result": "deal_amount_zero_trade_value_zero_cost_nan_price",
+                "failed_order_state_field": "Order.deal_amount",
+                "directional_limit_rule": "buy_orders_check_limit_buy_and_sell_orders_check_limit_sell",
+                "all_direction_limit_rule": "missing_direction_checks_any_buy_or_sell_limit",
+                "suspension_rule": "missing_close_or_unknown_stock_is_not_tradable",
+                "limit_rule": "limit_flags_true_mark_direction_not_tradable",
+                "decision_rule": "check_order_delegates_to_is_stock_tradable_before_deal_execution",
+                "rdagent_rule": "describe_only_do_not_redefine_order_tradability_or_limit_checks",
+            },
             "settlement_semantics": {
                 "semantic_name": "a_share_t_plus_1_stock_settlement",
                 "settlement_rule": "t_plus_1_stock",
@@ -453,6 +471,7 @@ def _valid_contract() -> dict[str, Any]:
             "execution_price_semantics",
             "price_adjustment_semantics",
             "price_limit_semantics",
+            "order_tradability_semantics",
             "settlement_semantics",
             "cash_settlement_semantics",
             "cash_constraint_semantics",
@@ -512,6 +531,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_price_adjustment_or_order_factor" in boundary["rdagent_forbidden_actions"]
     assert "redefine_price_limit_thresholds_or_authoritative_fields" in boundary["rdagent_forbidden_actions"]
     assert "treat_board_fallback_as_primary_price_limit_authority" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_order_tradability_or_limit_checks" in boundary["rdagent_forbidden_actions"]
     assert "redefine_settlement_or_sellable_position_state" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_settlement_or_sell_proceeds_availability" in boundary["rdagent_forbidden_actions"]
     assert "redefine_cash_buying_power_or_shorting_policy" in boundary["rdagent_forbidden_actions"]
@@ -526,6 +546,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "execution_price_semantics",
         "price_adjustment_semantics",
         "price_limit_semantics",
+        "order_tradability_semantics",
         "settlement_semantics",
         "cash_settlement_semantics",
         "cash_constraint_semantics",
@@ -624,6 +645,18 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["price_limit_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_price_limit_thresholds_or_fields"
+    )
+    assert (
+        context["prompt_projection_payload"]["order_tradability_semantics"]["runtime_authority"]
+        == "qlib.backtest.exchange.Exchange.check_order"
+    )
+    assert (
+        context["prompt_projection_payload"]["order_tradability_semantics"]["decision_rule"]
+        == "check_order_delegates_to_is_stock_tradable_before_deal_execution"
+    )
+    assert (
+        context["prompt_projection_payload"]["order_tradability_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_order_tradability_or_limit_checks"
     )
     assert context["prompt_projection_payload"]["settlement_semantics"]["settlement_rule"] == "t_plus_1_stock"
     assert (
@@ -790,6 +823,14 @@ def test_malformed_qlib_prompt_projection_without_price_limit_semantics_fails_cl
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_order_tradability_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["order_tradability_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_tradability_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_instrument_identity_semantics_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["instrument_identity_semantics"]
@@ -895,6 +936,34 @@ def test_malformed_qlib_prompt_projection_with_mutable_price_limit_runtime_autho
     ] = "rdagent.scenarios.qlib.price_limits"
 
     with pytest.raises(QlibAshareSemanticContractError, match="price_limit_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_tradability_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_tradability_semantics"][
+        "runtime_authority"
+    ] = "rdagent.scenarios.qlib.order_gate"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_tradability_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_directional_limit_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_tradability_semantics"][
+        "directional_limit_rule"
+    ] = "rdagent_can_infer_direction_limits"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_tradability_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_order_failure_result_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["order_tradability_semantics"]["failure_result"] = "raise_prompt_error"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="order_tradability_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -1272,6 +1341,15 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "price-limit fallback authority: "
         "board_thresholds_are_runtime_compatibility_fallback_only_not_primary_authority"
     ) in text
+    assert "order-tradability authority: pyqlib (qlib.backtest.exchange.Exchange.check_order)" in text
+    assert (
+        "order-tradability decision rule: " "check_order_delegates_to_is_stock_tradable_before_deal_execution"
+    ) in text
+    assert "order-tradability suspension rule: missing_close_or_unknown_stock_is_not_tradable" in text
+    assert (
+        "order-tradability directional limit rule: " "buy_orders_check_limit_buy_and_sell_orders_check_limit_sell"
+    ) in text
+    assert "order-tradability failure result: deal_amount_zero_trade_value_zero_cost_nan_price" in text
     assert "settlement authority: pyqlib (t_plus_1_stock)" in text
     assert "settlement runtime authority: pyqlib (qlib.backtest.position.AsharePosition)" in text
     assert "same-day sell policy: shares_bought_today_are_unsellable_until_day_commit" in text
@@ -1304,7 +1382,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "RD-Agent must not redefine: instrument_identity_semantics, "
         "universe_membership_semantics, trading_calendar_semantics, transaction_cost_semantics, "
         "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
-        "price_limit_semantics, settlement_semantics, cash_settlement_semantics, cash_constraint_semantics, "
+        "price_limit_semantics, order_tradability_semantics, settlement_semantics, cash_settlement_semantics, cash_constraint_semantics, "
         "liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, same_day_sell_policy, "
         "data_frequency, price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
     ) in text
