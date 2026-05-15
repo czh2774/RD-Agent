@@ -49,25 +49,6 @@ class ModelTaskLoaderJson(ModelTaskLoader):
     def load(self, *argT, **kwargs) -> Sequence[ModelTask]:
         # json is supposed to be in the format of {model_name: dict{model_data}}
         model_dict = json.load(open(self.json_uri, "r"))
-        # FIXME: the model in the json file is not right due to extraction error
-        #       We should fix them case by case in the future
-        #
-        # formula_info = {
-        #     "name": "Anti-Symmetric Deep Graph Network (A-DGN)",
-        #     "description": "A framework for stable and non-dissipative DGN design. It ensures long-range information preservation between nodes and prevents gradient vanishing or explosion during training.",
-        #     "formulation": r"\mathbf{x}^{\prime}_i = \mathbf{x}_i + \epsilon \cdot \sigma \left( (\mathbf{W}-\mathbf{W}^T-\gamma \mathbf{I}) \mathbf{x}_i + \Phi(\mathbf{X}, \mathcal{N}_i) + \mathbf{b}\right),",
-        #     "variables": {
-        #         r"\mathbf{x}_i": "The state of node i at previous layer",
-        #         r"\epsilon": "The step size in the Euler discretization",
-        #         r"\sigma": "A monotonically non-decreasing activation function",
-        #         r"\Phi": "A graph convolutional operator",
-        #         r"W": "An anti-symmetric weight matrix",
-        #         r"\mathbf{x}^{\prime}_i": "The node feature matrix at layer l-1",
-        #         r"\mathcal{N}_i": "The set of neighbors of node u",
-        #         r"\mathbf{b}": "A bias vector",
-        #     },
-        #     "key": "A-DGN",
-        # }
         model_impl_task_list = []
         for model_name, model_data in model_dict.items():
             model_impl_task = ModelTask(
