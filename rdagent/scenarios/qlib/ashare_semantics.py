@@ -134,6 +134,7 @@ def format_rd_agent_ashare_semantic_context(
     trading_calendar = _mapping(prompt_payload.get("trading_calendar_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
     market_impact = _mapping(prompt_payload.get("market_impact_semantics"))
+    account_update = _mapping(prompt_payload.get("account_update_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -190,6 +191,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- market-impact ratio rule: {market_impact.get('impact_cost_ratio_rule')}",
             f"- market-impact missing-volume rule: {market_impact.get('missing_volume_rule')}",
             f"- market-impact final cost rule: {market_impact.get('final_cost_rule')}",
+            f"- account-update authority: pyqlib ({account_update.get('account_update_authority')})",
+            f"- account-update trigger: {account_update.get('trade_update_trigger')}",
+            f"- account-update handoff rule: {account_update.get('handoff_rule')}",
+            f"- account-update buy rule: {account_update.get('buy_cash_rule')}",
+            f"- account-update sell rule: {account_update.get('sell_cash_rule')}",
+            f"- account-update sellable rule: {account_update.get('sellable_amount_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -333,6 +340,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_order_tradability_or_limit_checks",
         "redefine_order_fill_amount_or_clip_sequence",
         "redefine_market_impact_or_cost_ratio",
+        "redefine_account_position_or_cash_mutation_order",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -378,6 +386,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "order_tradability_semantics",
         "order_fill_amount_semantics",
         "market_impact_semantics",
+        "account_update_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -408,6 +417,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trading_calendar_semantics",
         "transaction_cost_semantics",
         "market_impact_semantics",
+        "account_update_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -764,6 +774,54 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if market_impact.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"market_impact_semantics must preserve {key}"
+            )
+    account_update = _mapping(prompt_payload.get("account_update_semantics"))
+    for key in (
+        "semantic_name",
+        "execution_authority",
+        "account_update_authority",
+        "account_metrics_authority",
+        "position_update_authority",
+        "ashare_sellable_update_authority",
+        "trade_update_trigger",
+        "failed_or_zero_trade_rule",
+        "handoff_rule",
+        "trade_amount_rule",
+        "buy_mutation_order",
+        "sell_mutation_order",
+        "buy_cash_rule",
+        "sell_cash_rule",
+        "sellable_amount_rule",
+        "infinite_position_rule",
+        "rdagent_rule",
+    ):
+        if key not in account_update:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload account_update_semantics must include {key}"
+            )
+    expected_account_update_values = {
+        "semantic_name": "a_share_account_position_cash_mutation",
+        "execution_authority": "qlib.backtest.exchange.Exchange.deal_order",
+        "account_update_authority": "qlib.backtest.account.Account.update_order",
+        "account_metrics_authority": "qlib.backtest.account.Account._update_state_from_order",
+        "position_update_authority": "qlib.backtest.position.Position.update_order",
+        "ashare_sellable_update_authority": "qlib.backtest.position.AsharePosition._sell_stock",
+        "trade_update_trigger": "only_trade_value_greater_than_one_e_minus_five_mutates_account_or_position",
+        "failed_or_zero_trade_rule": "failed_order_or_zero_trade_value_does_not_update_position_or_account",
+        "handoff_rule": "exchange_passes_final_trade_value_cost_and_price_to_account_or_position_update",
+        "trade_amount_rule": "mutated_amount_equals_trade_value_divided_by_trade_price",
+        "buy_mutation_order": "position_updates_before_account_metrics",
+        "sell_mutation_order": "account_metrics_update_before_position_update",
+        "buy_cash_rule": "buy_subtracts_trade_value_plus_cost_from_cash",
+        "sell_cash_rule": "sell_routes_trade_value_minus_cost_to_cash_or_cash_delay_by_settle_type",
+        "sellable_amount_rule": "ashare_sells_reduce_sellable_amount_and_day_bar_count_refresh_releases_total_amount",
+        "infinite_position_rule": "skip_update_position_does_not_mutate_account_or_position",
+        "rdagent_rule": "describe_only_do_not_redefine_account_position_or_cash_mutation_order",
+    }
+    for key, expected_value in expected_account_update_values.items():
+        if account_update.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"account_update_semantics must preserve {key}"
             )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
@@ -1510,6 +1568,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "trading_calendar_semantics",
         "transaction_cost_semantics",
         "market_impact_semantics",
+        "account_update_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
