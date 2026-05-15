@@ -129,6 +129,7 @@ def format_rd_agent_ashare_semantic_context(
     boundary = _mapping(payload.get("relationship_boundary"))
     prompt_payload = _mapping(payload.get("prompt_projection_payload"))
     market = _mapping(prompt_payload.get("market_semantics"))
+    instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
@@ -149,6 +150,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- authority rule: {boundary['authority_rule']}",
             f"- consumer rule: {boundary['consumer_rule']}",
             f"- market: {market.get('market')} / region={market.get('region')}",
+            f"- instrument identity authority: pyqlib ({instrument_identity.get('canonical_code_format')})",
+            "- instrument provider suffixes: "
+            + ", ".join(
+                f"{suffix}->{prefix}"
+                for suffix, prefix in sorted(_mapping(instrument_identity.get("accepted_provider_suffixes")).items())
+            ),
+            f"- board identity authority: pyqlib ({instrument_identity.get('board_classification_authority')})",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
@@ -233,6 +241,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if action not in allowed_actions:
             raise QlibAshareSemanticContractError(f"pyqlib A-share contract must allow RD-Agent action {action}")
     for action in (
+        "redefine_instrument_identity_or_board_mapping",
         "redefine_trade_unit_or_position_type",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
@@ -284,6 +293,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "pyqlib A-share contract projection_contract must project the semantic fingerprint"
         )
     for key in (
+        "instrument_identity_semantics",
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -355,6 +365,69 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             raise QlibAshareSemanticContractError(
                 f"pyqlib A-share contract prompt_projection_payload market_semantics must include {key}"
             )
+    instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
+    for key in (
+        "semantic_name",
+        "canonical_code_format",
+        "canonical_exchange_prefixes",
+        "accepted_provider_suffixes",
+        "normalization_examples",
+        "board_identity_rules",
+        "price_limit_dependency",
+        "runtime_authority",
+        "board_classification_authority",
+        "rdagent_rule",
+    ):
+        if key not in instrument_identity:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include {key}"
+            )
+    if instrument_identity.get("semantic_name") != "a_share_instrument_identity":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must describe A-share identity"
+        )
+    if instrument_identity.get("canonical_code_format") != "exchange_prefix_plus_six_digit_code":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must declare canonical code format"
+        )
+    prefixes = _string_list(instrument_identity.get("canonical_exchange_prefixes"))
+    for prefix in ("SH", "SZ", "BJ"):
+        if prefix not in prefixes:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include {prefix}"
+            )
+    suffixes = _mapping(instrument_identity.get("accepted_provider_suffixes"))
+    for suffix, prefix in {"XSHG": "SH", "XSHE": "SZ", "XBJ": "BJ"}.items():
+        if suffixes.get(suffix) != prefix:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must map "
+                f"{suffix} to {prefix}"
+            )
+    board_rules = instrument_identity.get("board_identity_rules")
+    if not isinstance(board_rules, list) or len(board_rules) < 4:
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include board rules"
+        )
+    board_names = {_mapping(rule).get("board") for rule in board_rules}
+    for board in ("star_market", "chinext_registration_sensitive", "beijing_stock_exchange", "main_board"):
+        if board not in board_names:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must include {board}"
+            )
+    if instrument_identity.get("runtime_authority") != "qlib.backtest.ashare_semantics.normalize_ashare_instrument":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must name Qlib runtime authority"
+        )
+    if instrument_identity.get("board_classification_authority") != (
+        "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.limit_threshold_for_instrument"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must name board authority"
+        )
+    if instrument_identity.get("rdagent_rule") != "describe_only_do_not_redefine_instrument_or_board_identity":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload instrument_identity_semantics must forbid RD-Agent redefinition"
+        )
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     for key in (
         "limit_threshold",
