@@ -131,6 +131,7 @@ def format_rd_agent_ashare_semantic_context(
     market = _mapping(prompt_payload.get("market_semantics"))
     instrument_identity = _mapping(prompt_payload.get("instrument_identity_semantics"))
     transaction_cost = _mapping(prompt_payload.get("transaction_cost_semantics"))
+    suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
@@ -164,6 +165,10 @@ def format_rd_agent_ashare_semantic_context(
             "- transaction-cost sell components: "
             + ", ".join(str(item) for item in transaction_cost.get("sell_cost_components", [])),
             f"- transaction-cost values: {transaction_cost.get('numeric_values_exposure')}",
+            f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
+            f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
+            f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
+            f"- suspension limit flags: {suspension_tradability.get('limit_flag_projection')}",
             f"- trade_unit authority: pyqlib ({market.get('trade_unit')})",
             f"- position authority: pyqlib ({market.get('position_type')})",
             f"- price-limit authority: pyqlib ({price_limit.get('field_authority')})",
@@ -250,6 +255,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     for action in (
         "redefine_instrument_identity_or_board_mapping",
         "redefine_transaction_cost_model",
+        "redefine_suspension_or_tradability_rules",
         "redefine_trade_unit_or_position_type",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
@@ -303,6 +309,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     for key in (
         "instrument_identity_semantics",
         "transaction_cost_semantics",
+        "suspension_tradability_semantics",
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
@@ -488,6 +495,55 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload transaction_cost_semantics must forbid RD-Agent redefinition"
         )
+    suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
+    for key in (
+        "semantic_name",
+        "suspension_indicator_field",
+        "suspension_indicator_rule",
+        "non_tradable_rule",
+        "limit_flag_projection",
+        "authoritative_limit_interaction",
+        "missing_limit_bounds_rule",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in suspension_tradability:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"suspension_tradability_semantics must include {key}"
+            )
+    if suspension_tradability.get("semantic_name") != "a_share_suspension_tradability":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must describe A-share suspension tradability"
+        )
+    if suspension_tradability.get("suspension_indicator_field") != "$close":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must use Qlib close-price suspension indicator"
+        )
+    if suspension_tradability.get("suspension_indicator_rule") != "missing_close_price_marks_suspended":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must declare missing close as suspended"
+        )
+    if suspension_tradability.get("non_tradable_rule") != "suspended_rows_are_not_buyable_or_sellable":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must make suspended rows non-tradable"
+        )
+    if suspension_tradability.get("runtime_authority") != (
+        "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.apply_price_limits"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must name Qlib runtime authority"
+        )
+    if suspension_tradability.get("rdagent_rule") != "describe_only_do_not_redefine_suspension_or_tradability":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload "
+            "suspension_tradability_semantics must forbid RD-Agent redefinition"
+        )
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     for key in (
         "limit_threshold",
@@ -670,6 +726,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "position_type",
         "settlement_rule",
         "same_day_sell_policy",
+        "suspension_tradability_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
