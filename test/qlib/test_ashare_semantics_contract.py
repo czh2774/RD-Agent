@@ -29,8 +29,8 @@ def _valid_contract() -> dict[str, Any]:
             "rdagent_role": "research_candidate_generation_context_consumer",
             "relationship_rule": (
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
-                "but it must not redefine trade unit, position, execution-price, suspension/tradability, "
-                "price-limit, or cost semantics."
+                "but it must not redefine trade unit, position, execution-price, price-adjustment, "
+                "suspension/tradability, price-limit, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
         },
@@ -50,6 +50,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_transaction_cost_model",
                 "redefine_suspension_or_tradability_rules",
                 "redefine_execution_price_or_frequency",
+                "redefine_price_adjustment_or_order_factor",
                 "redefine_trade_unit_or_position_type",
                 "redefine_price_limit_thresholds_or_authoritative_fields",
                 "redefine_cost_model_or_exchange_kwargs",
@@ -102,6 +103,7 @@ def _valid_contract() -> dict[str, Any]:
                 "transaction_cost_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
+                "price_adjustment_semantics",
                 "price_limit_semantics",
                 "settlement_semantics",
                 "order_unit_semantics",
@@ -214,6 +216,19 @@ def _valid_contract() -> dict[str, Any]:
                 "runtime_authority": "qlib.backtest.ashare_semantics.joinquant_ashare_exchange_kwargs",
                 "rdagent_rule": "describe_only_do_not_redefine_execution_price_or_frequency",
             },
+            "price_adjustment_semantics": {
+                "semantic_name": "a_share_price_adjustment_order_factor",
+                "factor_field": "$factor",
+                "factor_usage": "convert_adjusted_amounts_to_trade_unit_amounts_when_unadjusted_prices_are_used",
+                "missing_factor_rule": (
+                    "non_suspended_rows_with_missing_factor_use_adjusted_price_mode_and_disable_trade_unit_rounding"
+                ),
+                "adjusted_price_mode_rule": "trade_unit_rounding_is_not_supported_when_adjusted_price_mode_is_active",
+                "extra_quote_factor_rule": "missing_extra_quote_factor_defaults_to_one",
+                "suspension_interaction": "missing_factor_is_tolerated_when_close_is_missing",
+                "runtime_authority": "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit",
+                "rdagent_rule": "describe_only_do_not_redefine_price_adjustment_or_order_factor",
+            },
             "price_limit_semantics": {
                 "limit_threshold": "joinquant_ashare",
                 "price_limit_mode": "strict",
@@ -320,6 +335,7 @@ def _valid_contract() -> dict[str, Any]:
             "transaction_cost_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
+            "price_adjustment_semantics",
             "trade_unit",
             "position_type",
             "settlement_rule",
@@ -369,12 +385,14 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "redefine_transaction_cost_model" in boundary["rdagent_forbidden_actions"]
     assert "redefine_suspension_or_tradability_rules" in boundary["rdagent_forbidden_actions"]
     assert "redefine_execution_price_or_frequency" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_price_adjustment_or_order_factor" in boundary["rdagent_forbidden_actions"]
     assert "treat_research_prompt_projection_as_backtest_authority" in boundary["rdagent_forbidden_actions"]
     assert boundary["rdagent_must_not_redefine"] == [
         "instrument_identity_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
+        "price_adjustment_semantics",
         "trade_unit",
         "position_type",
         "settlement_rule",
@@ -417,6 +435,14 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["execution_price_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_execution_price_or_frequency"
+    )
+    assert (
+        context["prompt_projection_payload"]["price_adjustment_semantics"]["missing_factor_rule"]
+        == "non_suspended_rows_with_missing_factor_use_adjusted_price_mode_and_disable_trade_unit_rounding"
+    )
+    assert (
+        context["prompt_projection_payload"]["price_adjustment_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_price_adjustment_or_order_factor"
     )
     assert context["prompt_projection_payload"]["price_limit_semantics"]["price_limit_mode"] == "strict"
     assert (
@@ -560,6 +586,14 @@ def test_malformed_qlib_prompt_projection_without_execution_price_semantics_fail
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_price_adjustment_semantics_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["price_adjustment_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_adjustment_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_order_unit_semantics_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["order_unit_semantics"]
@@ -623,6 +657,34 @@ def test_malformed_qlib_prompt_projection_with_mutable_execution_price_rule_fail
     ] = "rdagent_may_override_execution_price"
 
     with pytest.raises(QlibAshareSemanticContractError, match="execution_price_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_price_adjustment_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["price_adjustment_semantics"][
+        "rdagent_rule"
+    ] = "rdagent_may_override_price_adjustment"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_adjustment_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_factor_field_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["price_adjustment_semantics"]["factor_field"] = "$adj_factor"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_adjustment_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_missing_factor_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["price_adjustment_semantics"][
+        "missing_factor_rule"
+    ] = "missing_factor_can_be_inferred_by_prompt"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="price_adjustment_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -705,6 +767,18 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "execution-price field: $close" in text
     assert "execution frequency: daily_bar_backtest" in text
     assert "intraday execution rule: not_intraday_or_auction_simulation" in text
+    assert (
+        "price-adjustment authority: pyqlib " "(qlib.backtest.exchange.Exchange.round_amount_by_trade_unit)"
+    ) in text
+    assert "price-adjustment factor field: $factor" in text
+    assert (
+        "price-adjustment missing factor: "
+        "non_suspended_rows_with_missing_factor_use_adjusted_price_mode_and_disable_trade_unit_rounding"
+    ) in text
+    assert (
+        "price-adjustment adjusted-price mode: "
+        "trade_unit_rounding_is_not_supported_when_adjusted_price_mode_is_active"
+    ) in text
     assert "price-limit authority: pyqlib (provider_up_down_limit_fields)" in text
     assert "price-limit mode: strict" in text
     assert "price-limit fallback: runtime_compatibility_only_when_authoritative_fields_are_absent" in text
@@ -716,8 +790,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "round-lot full liquidation: sell_all_remaining_position_without_round_lot_residual" in text
     assert (
         "RD-Agent must not redefine: instrument_identity_semantics, transaction_cost_semantics, "
-        "suspension_tradability_semantics, execution_price_semantics, trade_unit, position_type, settlement_rule, "
-        "same_day_sell_policy, price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
+        "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, trade_unit, "
+        "position_type, settlement_rule, same_day_sell_policy, price_limit_modes, authoritative_limit_fields, "
+        "board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
