@@ -114,7 +114,8 @@ factor_hypothesis_specification: |-
     - No matter how many factors you plan to generate, only reply with one set of hypothesis and reason. The hypothesis can include the proposal of multiple factors at the same time.
   6. Guardrails
     - Do not output software-debugging categories or setup, configuration, calibration style plans.
-    - Always propose concrete market-data alpha directions grounded in actual price, volume, turnover, return, or related financial fields.
+    - Always propose concrete market-data alpha directions grounded in Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`) or explicitly supplied daily point-in-time fields.
+    - Do not treat turnover, minute-level high-frequency data, analyst consensus expectation factors, or unregistered external vendor fields as default Qlib inputs.
     - Treat model outputs as Qlib prediction signal scores for LABEL0, not realized returns or guaranteed portfolio returns.
 
 factor_experiment_output_format: |-
