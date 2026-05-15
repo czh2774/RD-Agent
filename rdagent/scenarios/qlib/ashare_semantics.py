@@ -131,6 +131,7 @@ def format_rd_agent_ashare_semantic_context(
     market = _mapping(prompt_payload.get("market_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
+    order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
     return "\n".join(
@@ -155,6 +156,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- price-limit fallback: {price_limit.get('board_fallback_policy')}",
             f"- settlement authority: pyqlib ({settlement.get('settlement_rule')})",
             f"- same-day sell policy: {settlement.get('same_day_sell_policy')}",
+            f"- round-lot authority: pyqlib ({order_unit.get('trade_unit')} {order_unit.get('amount_unit')})",
+            f"- round-lot buy rule: {order_unit.get('buy_rounding_rule')}",
+            f"- round-lot sell rule: {order_unit.get('sell_rounding_rule')}",
+            f"- round-lot full liquidation: {order_unit.get('full_liquidation_rule')}",
             "- RD-Agent must not redefine: " + ", ".join(str(item) for item in boundary["rdagent_must_not_redefine"]),
             "- prompt projection forbids: " + ", ".join(str(item) for item in forbidden_prompt_fields),
             f"- failure_semantics: {boundary['failure_semantics']}",
@@ -282,6 +287,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
+        "order_unit_semantics",
     ):
         if key not in prompt_projection_fields:
             raise QlibAshareSemanticContractError(
@@ -414,6 +420,43 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
     if settlement.get("rdagent_rule") != "describe_only_do_not_redefine_position_or_settlement":
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload settlement_semantics must forbid RD-Agent redefinition"
+        )
+    order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
+    for key in (
+        "semantic_name",
+        "qlib_parameter",
+        "trade_unit",
+        "amount_unit",
+        "buy_rounding_rule",
+        "sell_rounding_rule",
+        "full_liquidation_rule",
+        "factor_adjustment_rule",
+        "runtime_authority",
+        "rdagent_rule",
+    ):
+        if key not in order_unit:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload order_unit_semantics must include {key}"
+            )
+    if order_unit.get("semantic_name") != "a_share_round_lot":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload order_unit_semantics must describe A-share round lot"
+        )
+    if order_unit.get("qlib_parameter") != "trade_unit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload order_unit_semantics must bind Qlib trade_unit"
+        )
+    if order_unit.get("trade_unit") != prompt_market.get("trade_unit"):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload order_unit_semantics must match market trade_unit"
+        )
+    if order_unit.get("runtime_authority") != "qlib.backtest.exchange.Exchange.round_amount_by_trade_unit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload order_unit_semantics must name Qlib runtime authority"
+        )
+    if order_unit.get("rdagent_rule") != "describe_only_do_not_redefine_trade_unit_or_round_lot_policy":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload order_unit_semantics must forbid RD-Agent redefinition"
         )
     _assert_no_forbidden_prompt_projection_payload(prompt_payload)
 
