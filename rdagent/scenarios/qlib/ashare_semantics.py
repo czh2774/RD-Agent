@@ -49,6 +49,9 @@ QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS = {
 }
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_PROMPT_PATHS = ("rdagent/scenarios/qlib/factor_experiment_loader/prompts.yaml",)
 QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS = ("$open", "$close", "$high", "$low", "$vwap", "$volume")
+QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE = (
+    "alpha158_alpha360_derived_features_must_be_computed_only_from_registered_daily_price_volume_fields"
+)
 QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE = "user_or_provider_supplied_non_price_volume_fields_must_name_source_owner_field_identity_and_daily_point_in_time_validity"
 QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE = (
     "turnover_is_not_a_default_factor_input_field_even_when_qlib_reports_portfolio_turnover"
@@ -414,6 +417,7 @@ def format_rd_agent_ashare_semantic_context(
             f"- research data-source frequency: {research_data_source.get('data_frequency')}",
             "- research data-source fields: "
             + ", ".join(str(item) for item in research_data_source.get("primary_price_volume_fields", [])),
+            f"- research data-source derived feature rule: {research_data_source.get('derived_feature_source_rule')}",
             "- research data-source forbidden defaults: "
             + ", ".join(str(item) for item in research_data_source.get("forbidden_default_prompt_sources", [])),
             f"- research data-source PIT registration: {research_data_source.get('point_in_time_registration_rule')}",
@@ -1906,6 +1910,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "daily_price_volume_derived_features",
             "provider_supplied_point_in_time_fundamental_or_industry_fields",
         ],
+        "derived_feature_source_rule": QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
         "point_in_time_rule": (
             "non_price_volume_fields_are_allowed_only_when_user_or_provider_supplies_daily_point_in_time_data"
         ),

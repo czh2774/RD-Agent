@@ -12,6 +12,7 @@ import pytest
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
     QLIB_ASHARE_BANDIT_METRIC_PATHS,
+    QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
     QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
@@ -525,6 +526,7 @@ def _research_data_source_semantics() -> dict[str, Any]:
             "daily_price_volume_derived_features",
             "provider_supplied_point_in_time_fundamental_or_industry_fields",
         ],
+        "derived_feature_source_rule": QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE,
         "point_in_time_rule": (
             "non_price_volume_fields_are_allowed_only_when_user_or_provider_supplies_daily_point_in_time_data"
         ),
@@ -1517,6 +1519,7 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
         for field in source_boundary["primary_price_volume_fields"]:
             assert field in prompt_text
         assert "Alpha158/Alpha360" in prompt_text
+        assert "derived features must not introduce new source fields" in prompt_text
         assert "daily point-in-time" in prompt_text
         assert "source owner, field identity, and daily point-in-time validity" in prompt_text
         assert "High-Frequency Data:" not in prompt_text
@@ -1693,6 +1696,7 @@ def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder(
         assert field in boundary
     for forbidden_source in QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES:
         assert forbidden_source in boundary
+    assert QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE in boundary
     assert QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE in boundary
     assert QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE in boundary
     assert "turnover" in boundary
@@ -1754,6 +1758,9 @@ def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields(
 
     assert (
         "Qlib registered daily A-share fields (`$open`, `$close`, `$high`, `$low`, `$vwap`, `$volume`)" in prompt_text
+    )
+    assert "Qlib Alpha158/Alpha360 derived features computed only from those registered daily price-volume fields" in (
+        prompt_text
     )
     assert "source owner, field identity, and daily point-in-time validity" in prompt_text
     assert (
@@ -2899,6 +2906,16 @@ def test_malformed_qlib_prompt_projection_with_mutable_pit_registration_rule_fai
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_derived_feature_source_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"][
+        "derived_feature_source_rule"
+    ] = "alpha158_alpha360_features_may_introduce_unregistered_source_fields"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_turnover_input_boundary_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["research_data_source_semantics"][
@@ -3294,6 +3311,7 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert ("runtime-handoff prompt boundary: " "execution_kwargs_remain_runtime_handoff_not_prompt_authority") in text
     assert "research data-source frequency: day" in text
     assert f"research data-source fields: {', '.join(QLIB_ASHARE_RESEARCH_DATA_SOURCE_FIELDS)}" in text
+    assert f"research data-source derived feature rule: {QLIB_ASHARE_DERIVED_FEATURE_SOURCE_RULE}" in text
     assert (
         "research data-source forbidden defaults: " f"{', '.join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)}"
     ) in text
