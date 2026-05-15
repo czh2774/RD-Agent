@@ -91,6 +91,13 @@ QLIB_ASHARE_MODEL_LOADER_BOUNDARY_RULE = (
 QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE = "rdagent_qlib_serialized_model_task_loaders_must_attach_prediction_signal_boundary_before_qlib_model_experiment_composition"
 QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE = "rdagent_qlib_serialized_model_benchmark_fixtures_must_use_datetime_instrument_prediction_score_semantics_not_graph_node_or_molecular_outputs"
 QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE = "rdagent_qlib_model_benchmark_reference_code_must_execute_tabular_or_timeseries_prediction_score_tensors_without_torch_geometric_or_graph_inputs"
+QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE = "rdagent_qlib_model_benchmark_fixtures_must_use_qlib_ashare_prediction_score_identity_not_legacy_graph_model_names"
+QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME = "QlibAshareTemporalScore"
+QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS = (
+    "rdagent/components/coder/model_coder/benchmark/model_dict.json",
+    "rdagent/components/coder/model_coder/benchmark/gt_code/QlibAshareTemporalScore.py",
+    "rdagent/app/benchmark/model/eval.py",
+)
 QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE = "rdagent_qlib_model_execution_templates_must_execute_tabular_or_timeseries_prediction_score_tensors_and_fail_closed_without_torch_geometric_graph_inputs"
 QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE = "rdagent_qlib_model_one_shot_prompts_must_request_tabular_or_timeseries_prediction_score_models_not_torch_geometric_graph_models"
 QLIB_ASHARE_SUPPORTED_MODEL_TYPES = ("Tabular", "TimeSeries")
@@ -274,6 +281,7 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('rdagent_model_json_loader_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_benchmark_fixture_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_benchmark_reference_code_boundary_rule')}; "
+        f"{prediction_signal.get('rdagent_model_benchmark_identity_rule')}; "
         f"{prediction_signal.get('rdagent_model_execution_template_boundary_rule')}; "
         f"{prediction_signal.get('rdagent_model_one_shot_prompt_boundary_rule')}."
     )
@@ -427,6 +435,11 @@ def format_rd_agent_ashare_semantic_context(
             f"{prediction_signal.get('rdagent_model_benchmark_fixture_boundary_rule')}",
             "- prediction-signal benchmark reference code boundary: "
             f"{prediction_signal.get('rdagent_model_benchmark_reference_code_boundary_rule')}",
+            "- prediction-signal benchmark identity boundary: "
+            f"{prediction_signal.get('rdagent_model_benchmark_identity_rule')}",
+            f"- prediction-signal benchmark task name: {prediction_signal.get('rdagent_model_benchmark_task_name')}",
+            "- prediction-signal benchmark surfaces: "
+            + ", ".join(str(item) for item in prediction_signal.get("rdagent_model_benchmark_surface_paths", [])),
             "- prediction-signal execution template boundary: "
             f"{prediction_signal.get('rdagent_model_execution_template_boundary_rule')}",
             "- prediction-signal one-shot prompt boundary: "
@@ -1555,6 +1568,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_json_loader_boundary_rule",
         "rdagent_model_benchmark_fixture_boundary_rule",
         "rdagent_model_benchmark_reference_code_boundary_rule",
+        "rdagent_model_benchmark_identity_rule",
+        "rdagent_model_benchmark_task_name",
+        "rdagent_model_benchmark_surface_paths",
         "rdagent_model_execution_template_boundary_rule",
         "rdagent_model_one_shot_prompt_boundary_rule",
         "rdagent_model_execution_surface_paths",
@@ -1599,6 +1615,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "rdagent_model_json_loader_boundary_rule": QLIB_ASHARE_MODEL_JSON_LOADER_BOUNDARY_RULE,
         "rdagent_model_benchmark_fixture_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_FIXTURE_BOUNDARY_RULE,
         "rdagent_model_benchmark_reference_code_boundary_rule": QLIB_ASHARE_MODEL_BENCHMARK_REFERENCE_CODE_BOUNDARY_RULE,
+        "rdagent_model_benchmark_identity_rule": QLIB_ASHARE_MODEL_BENCHMARK_IDENTITY_RULE,
+        "rdagent_model_benchmark_task_name": QLIB_ASHARE_MODEL_BENCHMARK_TASK_NAME,
+        "rdagent_model_benchmark_surface_paths": list(QLIB_ASHARE_MODEL_BENCHMARK_SURFACE_PATHS),
         "rdagent_model_execution_template_boundary_rule": QLIB_ASHARE_MODEL_EXECUTION_TEMPLATE_BOUNDARY_RULE,
         "rdagent_model_one_shot_prompt_boundary_rule": QLIB_ASHARE_MODEL_ONE_SHOT_PROMPT_BOUNDARY_RULE,
         "rdagent_model_execution_surface_paths": list(QLIB_ASHARE_MODEL_EXECUTION_SURFACE_PATHS),

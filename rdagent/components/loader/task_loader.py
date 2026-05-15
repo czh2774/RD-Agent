@@ -16,31 +16,6 @@ class ModelTaskLoader(Loader[ModelTask]):
 
 
 class ModelTaskLoaderJson(ModelTaskLoader):
-    # def __init__(self, json_uri: str, select_model: Optional[str] = None) -> None:
-    #     super().__init__()
-    #     self.json_uri = json_uri
-    #     self.select_model = 'A-DGN'
-
-    # def load(self, *argT, **kwargs) -> Sequence[ModelImplTask]:
-    #     # json is supposed to be in the format of {model_name: dict{model_data}}
-    #     model_dict = json.load(open(self.json_uri, "r"))
-    #     if self.select_model is not None:
-    #         assert self.select_model in model_dict
-    #         model_name = self.select_model
-    #         model_data = model_dict[self.select_model]
-    #     else:
-    #         model_name, model_data = list(model_dict.items())[0]
-
-    #     model_impl_task = ModelImplTask(
-    #         name=model_name,
-    #         description=model_data["description"],
-    #         formulation=model_data["formulation"],
-    #         variables=model_data["variables"],
-    #         key=model_name
-    #     )
-
-    #     return [model_impl_task]
-
     def __init__(self, json_uri: str, *, model_output_boundary: str | None = None) -> None:
         super().__init__()
         self.json_uri = json_uri

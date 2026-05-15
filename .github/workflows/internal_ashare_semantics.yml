@@ -13,6 +13,7 @@ on:
       - "rdagent/components/coder/model_coder/one_shot/prompt.yaml"
       - "rdagent/components/coder/model_coder/gt_code.py"
       - "rdagent/components/coder/model_coder/benchmark/model_dict.json"
+      - "rdagent/components/coder/model_coder/benchmark/gt_code/QlibAshareTemporalScore.py"
       - "rdagent/components/loader/task_loader.py"
       - "rdagent/app/benchmark/model/eval.py"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
@@ -49,6 +50,7 @@ on:
       - "rdagent/components/coder/model_coder/one_shot/prompt.yaml"
       - "rdagent/components/coder/model_coder/gt_code.py"
       - "rdagent/components/coder/model_coder/benchmark/model_dict.json"
+      - "rdagent/components/coder/model_coder/benchmark/gt_code/QlibAshareTemporalScore.py"
       - "rdagent/components/loader/task_loader.py"
       - "rdagent/app/benchmark/model/eval.py"
       - "rdagent/scenarios/qlib/ashare_semantics.py"
@@ -103,6 +105,7 @@ jobs:
             rdagent/components/coder/model_coder/model.py \
             rdagent/components/coder/model_coder/task_loader.py \
             rdagent/components/coder/model_coder/gt_code.py \
+            rdagent/components/coder/model_coder/benchmark/gt_code/QlibAshareTemporalScore.py \
             rdagent/components/loader/task_loader.py \
             rdagent/app/benchmark/model/eval.py \
             rdagent/scenarios/qlib/ashare_semantics.py \

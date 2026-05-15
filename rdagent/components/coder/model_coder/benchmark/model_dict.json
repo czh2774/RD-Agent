@@ -1,14 +1,14 @@
 {
-    "A-DGN": {
-        "description": "Legacy benchmark fixture key retained for gt-code compatibility. The task semantics are Qlib A-share temporal prediction-score modeling over daily per-instrument features.",
+    "QlibAshareTemporalScore": {
+        "description": "Qlib A-share temporal prediction-score benchmark over daily per-instrument point-in-time features.",
         "formulation": "\\hat{y}_{t,i}=f_{\\theta}(X_{t-L+1:t,i})",
         "variables": {
             "\\hat{y}_{t,i}": "Qlib prediction signal score for instrument i at datetime t, trained against LABEL0 and saved to the pred.pkl score column.",
             "X_{t-L+1:t,i}": "Daily point-in-time feature window for instrument i ending at datetime t.",
-            "f_{\\theta}": "Tabular or TimeSeries model allowed by the Qlib A-share model output boundary.",
+            "f_{\\theta}": "Boundary-declared Qlib A-share prediction-score model.",
             "LABEL0": "Qlib-owned supervised label Ref($close, -2)/Ref($close, -1) - 1."
         },
-        "key": "A-DGN",
+        "key": "QlibAshareTemporalScore",
         "model_type": "TimeSeries",
         "hyperparameters": {
             "lookback": 20,
