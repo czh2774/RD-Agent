@@ -57,7 +57,7 @@ def _text_has_concrete_qlib_source_hint(text: str) -> bool:
 
 def _raise_forbidden_default_source_error(text: str, *, subject: str) -> None:
     if any(pattern.search(text) for pattern in _FACTOR_FORBIDDEN_DEFAULT_SOURCE_PATTERNS):
-        forbidden = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES) + ", turnover"
+        forbidden = ", ".join(QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES)
         raise ValueError(
             f"{subject} must stay within the Qlib daily A-share research data boundary; "
             f"forbidden default sources include {forbidden}."
@@ -70,7 +70,7 @@ def build_qlib_ashare_factor_task_source_boundary() -> str:
     return (
         "Qlib daily A-share research data boundary: use only registered daily Qlib fields "
         f"({allowed_fields}) or explicitly supplied daily point-in-time fields. "
-        f"Forbidden default sources: {forbidden_sources}, turnover. "
+        f"Forbidden default sources: {forbidden_sources}. "
         "Do not infer unregistered fields during factor implementation or code review."
     )
 

@@ -1515,7 +1515,8 @@ def test_rd_agent_factor_extraction_prompts_use_qlib_daily_research_source_bound
         assert "High-Frequency Data:" not in prompt_text
         assert "Consensus Expectations Factor" not in prompt_text
         assert "containing open close high low volume vwap in each minute" not in prompt_text
-        assert "Do not assume minute-level high-frequency data" in prompt_text
+        assert "Do not assume turnover, minute-level high-frequency data" in prompt_text
+        assert "Do not treat turnover, minute-level high-frequency data" in prompt_text
         assert "analyst consensus expectation factors" in prompt_text
 
 
@@ -2822,7 +2823,20 @@ def test_malformed_qlib_prompt_projection_with_intraday_research_data_source_fai
 def test_malformed_qlib_prompt_projection_with_consensus_research_default_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["research_data_source_semantics"]["forbidden_default_prompt_sources"] = [
+        "turnover",
         "minute_level_high_frequency_data",
+        "unregistered_external_vendor_fields",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="research_data_source_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_without_turnover_research_default_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["research_data_source_semantics"]["forbidden_default_prompt_sources"] = [
+        "minute_level_high_frequency_data",
+        "analyst_consensus_expectation_factor",
         "unregistered_external_vendor_fields",
     ]
 
