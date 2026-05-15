@@ -103,6 +103,7 @@ evaluator_code_feedback:
 
         If the ground truth code is provided, your critic should only consider checking whether the user's code is align with the ground truth code since the ground truth is definitely correct.
         If the ground truth code is not provided, your critic should consider checking whether the user's code is reasonable and correct to the description and to the scenario.
+        If the model information includes `model_output_boundary`, treat it as a non-bypassable evaluation boundary. Flag boundary violations as critical even when the code executes, model value feedback is acceptable, ground truth code appears similar, or similar examples used another model family. For Qlib A-share tasks, Graph/XGBoost paths, realized-return outputs, missing `datetime`/`instrument` score-index semantics, or labels outside the Qlib-declared LABEL0 boundary are code feedback failures.
 
         Notice that your critics are not for user to debug the code. They are sent to the coding agent to correct the code. So don't give any following items for the user to check like "Please check the code line XXX".
 
@@ -115,6 +116,7 @@ evaluator_code_feedback:
     user: |-
         --------------Model information:---------------
         {{ model_information }}
+        If this model information includes `model_output_boundary`, preserve it as the evaluation authority. Do not let execution success, model value feedback, ground truth code, or similar examples override that boundary.
         --------------Python code:---------------
         {{ code }}
         --------------Execution feedback:---------------
@@ -139,6 +141,7 @@ evaluator_final_feedback:
         The implementation final decision is considered in the following logic:
         1. If the value and the ground truth value are exactly the same under a small tolerance, the implementation is considered correct.
         2. If no ground truth value is not provided, the implementation is considered correct if the code execution is successful and the code feedback is align with the scenario and model description.
+        3. If the model information includes `model_output_boundary`, any model output boundary violation makes `final_decision` false. Execution success, value tolerance, ground truth similarity, and former examples cannot override the boundary. For Qlib A-share tasks, reject Graph/XGBoost paths, realized-return outputs, missing `datetime`/`instrument` score-index semantics, or labels outside the Qlib-declared LABEL0 boundary.
 
         Please response the critic in the json format. Here is an example structure for the JSON output, please strictly follow the format:
         {
@@ -148,6 +151,7 @@ evaluator_final_feedback:
     user: |-
         --------------Model information:---------------
         {{ model_information }}
+        If this model information includes `model_output_boundary`, preserve it as the final decision authority.
         --------------Model Execution feedback:---------------
         {{ model_execution_feedback }}
         --------------Model shape feedback:---------------
