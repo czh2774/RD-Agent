@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import types
 from copy import deepcopy
@@ -54,6 +55,13 @@ from rdagent.scenarios.qlib.proposal.factor_semantics import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _read_prompt_block(prompt_text: str, key: str) -> str:
+    match = re.search(rf"^{re.escape(key)}: \|-\n(?P<body>.*?)(?=^\S|\Z)", prompt_text, flags=re.M | re.S)
+    if match is None:
+        raise AssertionError(f"Missing prompt block: {key}")
+    return match.group("body")
 
 
 def _market_impact_semantics() -> dict[str, str]:
@@ -1659,7 +1667,36 @@ def test_rd_agent_factor_task_information_carries_qlib_source_boundary_to_coder(
 
     workflow = (REPO_ROOT / ".github/workflows/internal_ashare_semantics.yml").read_text()
     assert "rdagent/components/coder/factor_coder/factor.py" in workflow
+    assert "rdagent/components/coder/factor_coder/prompts.yaml" in workflow
     assert "rdagent/scenarios/qlib/factor_experiment_loader/json_loader.py" in workflow
+
+
+def test_rd_agent_factor_coder_prompts_enforce_qlib_source_boundary_as_non_bypassable() -> None:
+    coder_prompt = (REPO_ROOT / "rdagent/components/coder/factor_coder/prompts.yaml").read_text()
+    source_boundary_prompt_keys = [
+        "evaluator_code_feedback_v1_system",
+        "evolving_strategy_factor_implementation_v1_system",
+        "evolving_strategy_error_summary_v2_system",
+        "select_implementable_factor_system",
+        "evaluator_final_decision_v1_system",
+    ]
+
+    for prompt_key in source_boundary_prompt_keys:
+        prompt_block = _read_prompt_block(coder_prompt, prompt_key)
+        assert "source_data_boundary" in prompt_block
+        assert "non-bypassable implementation boundary" in prompt_block
+        assert "must not infer fields, vendors, frequencies, or data sources outside that boundary" in prompt_block
+
+    implementation_prompt = _read_prompt_block(coder_prompt, "evolving_strategy_factor_implementation_v1_system")
+    assert "intraday or minute data" in implementation_prompt
+    assert "turnover" in implementation_prompt
+    assert "consensus data" in implementation_prompt
+
+    selector_prompt = _read_prompt_block(coder_prompt, "select_implementable_factor_system")
+    assert "not implementable under the current source boundary" in selector_prompt
+
+    final_decision_prompt = _read_prompt_block(coder_prompt, "evaluator_final_decision_v1_system")
+    assert "source boundary violation makes final_decision False" in final_decision_prompt
 
 
 def test_rd_agent_factor_prompt_specification_uses_registered_daily_qlib_fields() -> None:
