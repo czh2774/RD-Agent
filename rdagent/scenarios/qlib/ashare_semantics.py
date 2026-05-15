@@ -79,6 +79,11 @@ QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE = "rdagent_model_experiment_output_format_m
 QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE = (
     "rdagent_qlib_model_tasks_must_carry_prediction_signal_score_boundary_to_model_implementation_coder"
 )
+QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE = (
+    "rdagent_qlib_model_experiment_outputs_must_use_tabular_or_timeseries_model_type_only"
+)
+QLIB_ASHARE_SUPPORTED_MODEL_TYPES = ("Tabular", "TimeSeries")
+QLIB_ASHARE_FORBIDDEN_MODEL_TYPES = ("Graph", "XGBoost")
 QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS = ("rdagent/components/coder/model_coder/prompts.yaml",)
 QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS = ("IC", "ICIR", "Rank IC", "Rank ICIR")
 QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS = (
@@ -244,7 +249,8 @@ def build_qlib_ashare_model_task_output_boundary(contract: Mapping[str, Any] | N
         f"{prediction_signal.get('label_alignment_rule')}; "
         f"{prediction_signal.get('prompt_wording_rule')}; "
         f"{prediction_signal.get('rdagent_model_output_format_rule')}; "
-        f"{prediction_signal.get('rdagent_model_task_boundary_rule')}."
+        f"{prediction_signal.get('rdagent_model_task_boundary_rule')}; "
+        f"{prediction_signal.get('rdagent_model_type_boundary_rule')}."
     )
 
 
@@ -381,6 +387,11 @@ def format_rd_agent_ashare_semantic_context(
             f"- prediction-signal prompt wording: {prediction_signal.get('prompt_wording_rule')}",
             f"- prediction-signal model output format: {prediction_signal.get('rdagent_model_output_format_rule')}",
             f"- prediction-signal model task boundary: {prediction_signal.get('rdagent_model_task_boundary_rule')}",
+            f"- prediction-signal model type boundary: {prediction_signal.get('rdagent_model_type_boundary_rule')}",
+            "- prediction-signal supported model types: "
+            + ", ".join(str(item) for item in prediction_signal.get("rdagent_supported_model_types", [])),
+            "- prediction-signal forbidden model types: "
+            + ", ".join(str(item) for item in prediction_signal.get("rdagent_forbidden_model_types", [])),
             "- prediction-signal implementation prompts: "
             + ", ".join(str(item) for item in prediction_signal.get("rdagent_implementation_prompt_paths", [])),
             f"- signal-ic authority: pyqlib ({signal_ic.get('signal_analysis_authority')})",
@@ -1490,6 +1501,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prompt_wording_rule",
         "rdagent_model_output_format_rule",
         "rdagent_model_task_boundary_rule",
+        "rdagent_model_type_boundary_rule",
+        "rdagent_supported_model_types",
+        "rdagent_forbidden_model_types",
         "rdagent_implementation_prompt_paths",
         "rdagent_prompt_paths",
         "rdagent_rule",
@@ -1521,6 +1535,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         ),
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
+        "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
+        "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
+        "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
