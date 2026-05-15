@@ -29,7 +29,8 @@ def _valid_contract() -> dict[str, Any]:
             "rdagent_role": "research_candidate_generation_context_consumer",
             "relationship_rule": (
                 "RD-Agent may consume Qlib's A-share contract for research generation and evaluation context, "
-                "but it must not redefine trade unit, position, execution-price, price-adjustment, "
+                "but it must not redefine trading-calendar/data-frequency, trade unit, position, execution-price, "
+                "price-adjustment, "
                 "suspension/tradability, price-limit, settlement, cash/shorting, liquidity/capacity, or cost semantics."
             ),
             "fail_closed_on_missing_contract": True,
@@ -47,6 +48,7 @@ def _valid_contract() -> dict[str, Any]:
             ],
             "rdagent_forbidden_actions": [
                 "redefine_instrument_identity_or_board_mapping",
+                "redefine_trading_calendar_or_data_frequency",
                 "redefine_transaction_cost_model",
                 "redefine_suspension_or_tradability_rules",
                 "redefine_execution_price_or_frequency",
@@ -98,12 +100,14 @@ def _valid_contract() -> dict[str, Any]:
                 "evidence_contract.semantic_fingerprint",
                 "market_semantics.market",
                 "market_semantics.region",
+                "market_semantics.data_frequency",
                 "market_semantics.trade_unit",
                 "market_semantics.position_type",
                 "market_semantics.settlement_rule",
                 "market_semantics.limit_threshold",
                 "market_semantics.authoritative_limit_fields",
                 "instrument_identity_semantics",
+                "trading_calendar_semantics",
                 "transaction_cost_semantics",
                 "suspension_tradability_semantics",
                 "execution_price_semantics",
@@ -148,6 +152,7 @@ def _valid_contract() -> dict[str, Any]:
             "market_semantics": {
                 "market": "china_a_share",
                 "region": "cn",
+                "data_frequency": "day",
                 "trade_unit": 100,
                 "position_type": "AsharePosition",
                 "settlement_rule": "t_plus_1_stock",
@@ -187,6 +192,22 @@ def _valid_contract() -> dict[str, Any]:
                     "qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.limit_threshold_for_instrument"
                 ),
                 "rdagent_rule": "describe_only_do_not_redefine_instrument_or_board_identity",
+            },
+            "trading_calendar_semantics": {
+                "semantic_name": "a_share_daily_trading_calendar",
+                "calendar_frequency": "day",
+                "calendar_provider_authority": "qlib.data.data.CalendarProvider.calendar",
+                "calendar_locator_authority": "qlib.data.data.CalendarProvider.locate_index",
+                "exchange_frequency_parameter": "freq",
+                "exchange_default_frequency": "day",
+                "index_level": "datetime",
+                "instrument_window_rule": "instrument_membership_is_filtered_against_calendar_boundaries",
+                "non_trading_day_rule": (
+                    "calendar_locate_index_maps_start_forward_and_end_backward_to_real_trading_days"
+                ),
+                "future_calendar_rule": "future_trading_days_require_qlib_future_calendar_support_not_prompt_invention",
+                "synthetic_session_rule": "rdagent_must_not_invent_non_qlib_calendar_sessions",
+                "rdagent_rule": "describe_only_do_not_redefine_trading_calendar_or_data_frequency",
             },
             "transaction_cost_semantics": {
                 "semantic_name": "a_share_transaction_cost_structure",
@@ -346,6 +367,7 @@ def _valid_contract() -> dict[str, Any]:
         "market_semantics": {
             "market": "china_a_share",
             "region": "cn",
+            "data_frequency": "day",
             "trade_unit": 100,
             "position_type": "AsharePosition",
             "settlement_rule": "t_plus_1_stock",
@@ -385,6 +407,7 @@ def _valid_contract() -> dict[str, Any]:
         },
         "rdagent_must_not_redefine": [
             "instrument_identity_semantics",
+            "trading_calendar_semantics",
             "transaction_cost_semantics",
             "suspension_tradability_semantics",
             "execution_price_semantics",
@@ -397,6 +420,7 @@ def _valid_contract() -> dict[str, Any]:
             "position_type",
             "settlement_rule",
             "same_day_sell_policy",
+            "data_frequency",
             "price_limit_modes",
             "authoritative_limit_fields",
             "board_threshold_fields",
@@ -439,6 +463,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert boundary["authority_rule"] == "Qlib owns executable JoinQuant-compatible A-share backtest semantics."
     assert "render_contract_projection_in_research_context" in boundary["rdagent_may"]
     assert "redefine_instrument_identity_or_board_mapping" in boundary["rdagent_forbidden_actions"]
+    assert "redefine_trading_calendar_or_data_frequency" in boundary["rdagent_forbidden_actions"]
     assert "redefine_transaction_cost_model" in boundary["rdagent_forbidden_actions"]
     assert "redefine_suspension_or_tradability_rules" in boundary["rdagent_forbidden_actions"]
     assert "redefine_execution_price_or_frequency" in boundary["rdagent_forbidden_actions"]
@@ -451,6 +476,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert "treat_research_prompt_projection_as_backtest_authority" in boundary["rdagent_forbidden_actions"]
     assert boundary["rdagent_must_not_redefine"] == [
         "instrument_identity_semantics",
+        "trading_calendar_semantics",
         "transaction_cost_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
@@ -463,6 +489,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "position_type",
         "settlement_rule",
         "same_day_sell_policy",
+        "data_frequency",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
@@ -471,6 +498,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert context["failure_contract"]["runtime_projection_drift"] == "fail_closed"
     assert "runtime_surfaces.backtest_kwargs" in context["prompt_projection"]["rdagent_prompt_forbidden_fields"]
     assert context["prompt_projection_payload"]["market_semantics"]["trade_unit"] == 100
+    assert context["prompt_projection_payload"]["market_semantics"]["data_frequency"] == "day"
     assert (
         context["prompt_projection_payload"]["instrument_identity_semantics"]["runtime_authority"]
         == "qlib.backtest.ashare_semantics.normalize_ashare_instrument"
@@ -478,6 +506,19 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         context["prompt_projection_payload"]["instrument_identity_semantics"]["rdagent_rule"]
         == "describe_only_do_not_redefine_instrument_or_board_identity"
+    )
+    assert context["prompt_projection_payload"]["trading_calendar_semantics"]["calendar_frequency"] == "day"
+    assert (
+        context["prompt_projection_payload"]["trading_calendar_semantics"]["calendar_provider_authority"]
+        == "qlib.data.data.CalendarProvider.calendar"
+    )
+    assert (
+        context["prompt_projection_payload"]["trading_calendar_semantics"]["non_trading_day_rule"]
+        == "calendar_locate_index_maps_start_forward_and_end_backward_to_real_trading_days"
+    )
+    assert (
+        context["prompt_projection_payload"]["trading_calendar_semantics"]["rdagent_rule"]
+        == "describe_only_do_not_redefine_trading_calendar_or_data_frequency"
     )
     assert (
         context["prompt_projection_payload"]["transaction_cost_semantics"]["numeric_values_exposure"]
@@ -672,6 +713,14 @@ def test_malformed_qlib_prompt_projection_without_instrument_identity_semantics_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_without_trading_calendar_semantics_fails_closed() -> None:
+    contract = _valid_contract()
+    del contract["prompt_projection_payload"]["trading_calendar_semantics"]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trading_calendar_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_without_transaction_cost_semantics_fails_closed() -> None:
     contract = _valid_contract()
     del contract["prompt_projection_payload"]["transaction_cost_semantics"]
@@ -763,6 +812,34 @@ def test_malformed_qlib_prompt_projection_with_mutable_instrument_identity_rule_
     ] = "rdagent_may_override_instrument_identity"
 
     with pytest.raises(QlibAshareSemanticContractError, match="instrument_identity_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_calendar_frequency_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trading_calendar_semantics"]["calendar_frequency"] = "1min"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trading_calendar_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_calendar_authority_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trading_calendar_semantics"][
+        "calendar_provider_authority"
+    ] = "rdagent.calendar.Provider"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trading_calendar_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_calendar_session_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["trading_calendar_semantics"][
+        "synthetic_session_rule"
+    ] = "rdagent_may_invent_missing_sessions"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="trading_calendar_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
 
 
@@ -981,6 +1058,14 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
         "board identity authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.limit_threshold_for_instrument)"
     ) in text
+    assert "trading-calendar authority: pyqlib (qlib.data.data.CalendarProvider.calendar)" in text
+    assert "trading-calendar locator: pyqlib (qlib.data.data.CalendarProvider.locate_index)" in text
+    assert "trading-calendar frequency: day" in text
+    assert (
+        "trading-calendar non-trading day rule: "
+        "calendar_locate_index_maps_start_forward_and_end_backward_to_real_trading_days"
+    ) in text
+    assert "trading-calendar synthetic session rule: rdagent_must_not_invent_non_qlib_calendar_sessions" in text
     assert (
         "transaction-cost authority: pyqlib "
         "(qlib.backtest.ashare_semantics.JoinQuantAshareBacktestPolicy.calculate_trade_cost)"
@@ -1049,11 +1134,12 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert "round-lot sell rule: round_sell_amount_down_to_trade_unit_except_full_liquidation" in text
     assert "round-lot full liquidation: sell_all_remaining_position_without_round_lot_residual" in text
     assert (
-        "RD-Agent must not redefine: instrument_identity_semantics, transaction_cost_semantics, "
-        "suspension_tradability_semantics, execution_price_semantics, price_adjustment_semantics, "
-        "price_limit_semantics, settlement_semantics, cash_constraint_semantics, "
-        "liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, same_day_sell_policy, "
-        "price_limit_modes, authoritative_limit_fields, board_threshold_fields, cost_model"
+        "RD-Agent must not redefine: instrument_identity_semantics, "
+        "trading_calendar_semantics, transaction_cost_semantics, suspension_tradability_semantics, "
+        "execution_price_semantics, price_adjustment_semantics, price_limit_semantics, settlement_semantics, "
+        "cash_constraint_semantics, liquidity_capacity_semantics, trade_unit, position_type, settlement_rule, "
+        "same_day_sell_policy, data_frequency, price_limit_modes, authoritative_limit_fields, "
+        "board_threshold_fields, cost_model"
     ) in text
     assert "prompt projection forbids: runtime_surfaces.policy_defaults" in text
     assert "runtime_surfaces.backtest_kwargs" in text
