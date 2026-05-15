@@ -138,6 +138,7 @@ def format_rd_agent_ashare_semantic_context(
     account_valuation = _mapping(prompt_payload.get("account_valuation_semantics"))
     trade_indicator = _mapping(prompt_payload.get("trade_indicator_semantics"))
     executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
+    strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -221,6 +222,11 @@ def format_rd_agent_ashare_semantic_context(
             f"- executor-decision bar-end rule: {executor_decision.get('bar_end_sequence_rule')}",
             f"- executor-decision nested range rule: {executor_decision.get('nested_range_rule')}",
             f"- executor-decision inner decision rule: {executor_decision.get('inner_decision_rule')}",
+            f"- strategy-order authority: pyqlib ({strategy_order.get('topk_strategy_authority')})",
+            f"- strategy-order template binding: {strategy_order.get('template_strategy_binding')}",
+            f"- strategy-order prediction window: {strategy_order.get('prediction_window_rule')}",
+            f"- strategy-order dropout rule: {strategy_order.get('dropout_rule')}",
+            f"- strategy-order order return rule: {strategy_order.get('target_order_return_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -368,6 +374,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_account_valuation_or_bar_end_refresh",
         "redefine_trade_execution_indicators_or_quality_metrics",
         "redefine_executor_decision_lifecycle_or_nested_execution_order",
+        "redefine_strategy_signal_to_order_generation",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -417,6 +424,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_valuation_semantics",
         "trade_indicator_semantics",
         "executor_decision_semantics",
+        "strategy_order_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -451,6 +459,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_valuation_semantics",
         "trade_indicator_semantics",
         "executor_decision_semantics",
+        "strategy_order_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -1068,6 +1077,86 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if executor_decision.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"executor_decision_semantics must preserve {key}"
+            )
+    strategy_order = _mapping(prompt_payload.get("strategy_order_semantics"))
+    for key in (
+        "semantic_name",
+        "base_strategy_authority",
+        "topk_strategy_authority",
+        "weight_strategy_authority",
+        "order_generator_authority",
+        "interacting_order_generator_authority",
+        "non_interacting_order_generator_authority",
+        "target_amount_order_authority",
+        "trade_decision_type",
+        "signal_authority",
+        "template_strategy_binding",
+        "prediction_window_rule",
+        "dataframe_signal_rule",
+        "missing_signal_rule",
+        "topk_selection_rule",
+        "dropout_rule",
+        "sell_order_rule",
+        "buy_budget_rule",
+        "hold_threshold_rule",
+        "only_tradable_rule",
+        "forbid_all_trade_at_limit_rule",
+        "buy_round_lot_rule",
+        "weight_strategy_rule",
+        "interacting_generator_rule",
+        "non_interacting_generator_rule",
+        "target_order_rule",
+        "target_order_return_rule",
+        "rdagent_rule",
+    ):
+        if key not in strategy_order:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload strategy_order_semantics must include {key}"
+            )
+    expected_strategy_order_values = {
+        "semantic_name": "a_share_strategy_signal_to_order_generation",
+        "base_strategy_authority": "qlib.strategy.base.BaseStrategy.generate_trade_decision",
+        "topk_strategy_authority": "qlib.contrib.strategy.signal_strategy.TopkDropoutStrategy.generate_trade_decision",
+        "weight_strategy_authority": "qlib.contrib.strategy.signal_strategy.WeightStrategyBase.generate_trade_decision",
+        "order_generator_authority": (
+            "qlib.contrib.strategy.order_generator.OrderGenerator.generate_order_list_from_target_weight_position"
+        ),
+        "interacting_order_generator_authority": (
+            "qlib.contrib.strategy.order_generator.OrderGenWInteract.generate_order_list_from_target_weight_position"
+        ),
+        "non_interacting_order_generator_authority": (
+            "qlib.contrib.strategy.order_generator.OrderGenWOInteract.generate_order_list_from_target_weight_position"
+        ),
+        "target_amount_order_authority": "qlib.backtest.exchange.Exchange.generate_order_for_target_amount_position",
+        "trade_decision_type": "qlib.backtest.decision.TradeDecisionWO",
+        "signal_authority": "qlib.backtest.signal.Signal.get_signal",
+        "template_strategy_binding": "qlib.contrib.strategy.TopkDropoutStrategy",
+        "prediction_window_rule": "strategy_reads_signal_from_previous_calendar_step_shift_one",
+        "dataframe_signal_rule": "topk_dropout_uses_first_signal_column_when_prediction_is_dataframe",
+        "missing_signal_rule": "missing_signal_returns_empty_TradeDecisionWO",
+        "topk_selection_rule": "topk_dropout_ranks_current_holdings_and_new_candidates_by_pred_score_descending",
+        "dropout_rule": "combined_last_and_today_scores_prevent_dropping_higher_score_stock_for_lower_score_buy",
+        "sell_order_rule": "sell_orders_are_generated_before_buy_orders_and_simulated_on_temp_position_for_cash",
+        "buy_budget_rule": "buy_budget_equals_temp_cash_times_risk_degree_divided_by_buy_count",
+        "hold_threshold_rule": "sell_requires_current_holding_count_at_least_hold_thresh",
+        "only_tradable_rule": "only_tradable_filters_selection_candidates_by_exchange_tradability",
+        "forbid_all_trade_at_limit_rule": (
+            "forbid_all_trade_at_limit_checks_any_limit_direction_else_directional_limit"
+        ),
+        "buy_round_lot_rule": "buy_amount_uses_deal_price_factor_and_exchange_round_amount_by_trade_unit",
+        "weight_strategy_rule": "weight_strategy_delegates_target_weight_to_order_generator_after_signal_lookup",
+        "interacting_generator_rule": "interacting_order_generator_uses_trade_date_tradability_and_prices",
+        "non_interacting_generator_rule": (
+            "non_interacting_order_generator_uses_pred_date_close_or_current_holding_price"
+        ),
+        "target_order_rule": "exchange_generates_target_amount_orders_with_deterministic_shuffled_stock_order",
+        "target_order_return_rule": "exchange_returns_sell_orders_before_buy_orders",
+        "rdagent_rule": "describe_only_do_not_redefine_strategy_signal_to_order_generation",
+    }
+    for key, expected_value in expected_strategy_order_values.items():
+        if strategy_order.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"strategy_order_semantics must preserve {key}"
             )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
@@ -1818,6 +1907,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_valuation_semantics",
         "trade_indicator_semantics",
         "executor_decision_semantics",
+        "strategy_order_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
