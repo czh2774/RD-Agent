@@ -137,6 +137,7 @@ def format_rd_agent_ashare_semantic_context(
     account_update = _mapping(prompt_payload.get("account_update_semantics"))
     account_valuation = _mapping(prompt_payload.get("account_valuation_semantics"))
     trade_indicator = _mapping(prompt_payload.get("trade_indicator_semantics"))
+    executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     execution_price = _mapping(prompt_payload.get("execution_price_semantics"))
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
@@ -213,6 +214,13 @@ def format_rd_agent_ashare_semantic_context(
             f"- trade-indicator fulfill rate rule: {trade_indicator.get('fulfill_rate_rule')}",
             f"- trade-indicator price advantage rule: {trade_indicator.get('price_advantage_rule')}",
             f"- trade-indicator portfolio boundary: {trade_indicator.get('portfolio_boundary_rule')}",
+            f"- executor-decision authority: pyqlib ({executor_decision.get('base_executor_authority')})",
+            f"- executor-decision simulator authority: pyqlib ({executor_decision.get('simulator_executor_authority')})",
+            f"- executor-decision nested authority: pyqlib ({executor_decision.get('nested_executor_authority')})",
+            f"- executor-decision atomicity rule: {executor_decision.get('atomicity_rule')}",
+            f"- executor-decision bar-end rule: {executor_decision.get('bar_end_sequence_rule')}",
+            f"- executor-decision nested range rule: {executor_decision.get('nested_range_rule')}",
+            f"- executor-decision inner decision rule: {executor_decision.get('inner_decision_rule')}",
             f"- suspension authority: pyqlib ({suspension_tradability.get('runtime_authority')})",
             f"- suspension indicator: {suspension_tradability.get('suspension_indicator_rule')}",
             f"- suspension tradability: {suspension_tradability.get('non_tradable_rule')}",
@@ -359,6 +367,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_account_position_or_cash_mutation_order",
         "redefine_account_valuation_or_bar_end_refresh",
         "redefine_trade_execution_indicators_or_quality_metrics",
+        "redefine_executor_decision_lifecycle_or_nested_execution_order",
         "redefine_settlement_or_sellable_position_state",
         "redefine_cash_settlement_or_sell_proceeds_availability",
         "redefine_cash_buying_power_or_shorting_policy",
@@ -407,6 +416,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_update_semantics",
         "account_valuation_semantics",
         "trade_indicator_semantics",
+        "executor_decision_semantics",
         "rdagent_must_not_redefine",
     ):
         if key not in fingerprint_scope:
@@ -440,6 +450,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_update_semantics",
         "account_valuation_semantics",
         "trade_indicator_semantics",
+        "executor_decision_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
@@ -987,6 +998,76 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if trade_indicator.get(key) != expected_value:
             raise QlibAshareSemanticContractError(
                 "pyqlib A-share contract prompt_projection_payload " f"trade_indicator_semantics must preserve {key}"
+            )
+    executor_decision = _mapping(prompt_payload.get("executor_decision_semantics"))
+    for key in (
+        "semantic_name",
+        "base_executor_authority",
+        "simulator_executor_authority",
+        "nested_executor_authority",
+        "decision_authority",
+        "decision_update_authority",
+        "range_limit_authority",
+        "data_calendar_range_authority",
+        "inner_decision_modification_authority",
+        "calendar_authority",
+        "level_infra_authority",
+        "atomicity_rule",
+        "settle_sequence_rule",
+        "bar_end_sequence_rule",
+        "track_data_rule",
+        "simulator_order_rule",
+        "simulator_trade_type_rule",
+        "daily_dealt_amount_rule",
+        "nested_init_rule",
+        "nested_update_rule",
+        "nested_range_rule",
+        "inner_decision_rule",
+        "empty_decision_rule",
+        "inner_result_rule",
+        "rdagent_rule",
+    ):
+        if key not in executor_decision:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload executor_decision_semantics must include {key}"
+            )
+    expected_executor_decision_values = {
+        "semantic_name": "a_share_executor_trade_decision_lifecycle",
+        "base_executor_authority": "qlib.backtest.executor.BaseExecutor.collect_data",
+        "simulator_executor_authority": "qlib.backtest.executor.SimulatorExecutor._collect_data",
+        "nested_executor_authority": "qlib.backtest.executor.NestedExecutor._collect_data",
+        "decision_authority": "qlib.backtest.decision.BaseTradeDecision",
+        "decision_update_authority": "qlib.backtest.decision.BaseTradeDecision.update",
+        "range_limit_authority": "qlib.backtest.decision.BaseTradeDecision.get_range_limit",
+        "data_calendar_range_authority": "qlib.backtest.decision.BaseTradeDecision.get_data_cal_range_limit",
+        "inner_decision_modification_authority": "qlib.backtest.decision.BaseTradeDecision.mod_inner_decision",
+        "calendar_authority": "qlib.backtest.utils.TradeCalendarManager",
+        "level_infra_authority": "qlib.backtest.utils.LevelInfrastructure",
+        "atomicity_rule": "atomic_executor_rejects_trade_decision_range_limit",
+        "settle_sequence_rule": "settle_start_runs_before_collection_and_settle_commit_after_bar_end_when_enabled",
+        "bar_end_sequence_rule": "executor_updates_account_bar_end_before_trade_calendar_step",
+        "track_data_rule": "track_data_yields_outer_trade_decision_for_training_data_only",
+        "simulator_order_rule": "simulator_executor_retrieves_order_decisions_and_deals_each_order_through_exchange",
+        "simulator_trade_type_rule": (
+            "serial_preserves_order_sequence_parallel_sorts_buys_before_sells_to_surface_cash_conflicts"
+        ),
+        "daily_dealt_amount_rule": "simulator_resets_dealt_order_amount_when_trade_day_advances",
+        "nested_init_rule": (
+            "nested_executor_resets_inner_executor_to_outer_step_window_and_passes_outer_decision_to_inner_strategy"
+        ),
+        "nested_update_rule": "nested_executor_updates_outer_decision_with_inner_calendar_before_range_limit_alignment",
+        "nested_range_rule": "nested_executor_skips_inner_steps_outside_range_limit_when_align_range_limit_is_enabled",
+        "inner_decision_rule": (
+            "outer_trade_decision_may_propagate_trade_range_into_inner_trade_decision_only_when_inner_range_absent"
+        ),
+        "empty_decision_rule": "empty_decision_can_skip_inner_loop_when_skip_empty_decision_is_enabled",
+        "inner_result_rule": "nested_executor_collects_inner_execute_results_order_indicators_and_decision_time_windows",
+        "rdagent_rule": "describe_only_do_not_redefine_executor_decision_lifecycle_or_nested_execution_order",
+    }
+    for key, expected_value in expected_executor_decision_values.items():
+        if executor_decision.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload " f"executor_decision_semantics must preserve {key}"
             )
     suspension_tradability = _mapping(prompt_payload.get("suspension_tradability_semantics"))
     for key in (
@@ -1736,6 +1817,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "account_update_semantics",
         "account_valuation_semantics",
         "trade_indicator_semantics",
+        "executor_decision_semantics",
         "suspension_tradability_semantics",
         "execution_price_semantics",
         "price_adjustment_semantics",
