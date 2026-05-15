@@ -136,6 +136,7 @@ def format_rd_agent_ashare_semantic_context(
     price_adjustment = _mapping(prompt_payload.get("price_adjustment_semantics"))
     price_limit = _mapping(prompt_payload.get("price_limit_semantics"))
     settlement = _mapping(prompt_payload.get("settlement_semantics"))
+    cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     projection = _mapping(payload.get("prompt_projection"))
     forbidden_prompt_fields = projection.get("rdagent_prompt_forbidden_fields", [])
@@ -196,6 +197,10 @@ def format_rd_agent_ashare_semantic_context(
             f"- settlement intraday buy rule: {settlement.get('intraday_buy_rule')}",
             f"- settlement day commit rule: {settlement.get('day_commit_rule')}",
             f"- settlement sell clip: {settlement.get('sell_order_clip_rule')}",
+            f"- cash constraint authority: pyqlib ({cash_constraint.get('runtime_authority')})",
+            f"- cash state: {cash_constraint.get('cash_state_field')}",
+            f"- cash buy rule: {cash_constraint.get('buy_cash_rule')}",
+            f"- shorting policy: {cash_constraint.get('shorting_policy')}",
             f"- round-lot authority: pyqlib ({order_unit.get('trade_unit')} {order_unit.get('amount_unit')})",
             f"- round-lot buy rule: {order_unit.get('buy_rounding_rule')}",
             f"- round-lot sell rule: {order_unit.get('sell_rounding_rule')}",
@@ -282,6 +287,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_price_limit_thresholds_or_authoritative_fields",
         "treat_board_fallback_as_primary_price_limit_authority",
         "redefine_settlement_or_sellable_position_state",
+        "redefine_cash_buying_power_or_shorting_policy",
         "redefine_cost_model_or_exchange_kwargs",
         "treat_research_prompt_projection_as_backtest_authority",
         "claim_a_share_alignment_without_qlib_contract_fingerprint",
@@ -340,6 +346,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_limit_semantics",
         "market_semantics.settlement_rule",
         "settlement_semantics",
+        "cash_constraint_semantics",
         "order_unit_semantics",
     ):
         if key not in prompt_projection_fields:
@@ -856,6 +863,80 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract prompt_projection_payload settlement_semantics must forbid RD-Agent redefinition"
         )
+    cash_constraint = _mapping(prompt_payload.get("cash_constraint_semantics"))
+    for key in (
+        "semantic_name",
+        "cash_state_field",
+        "cash_query_rule",
+        "buy_cash_rule",
+        "minimum_cost_rule",
+        "partial_buy_rule",
+        "shorting_policy",
+        "sell_position_rule",
+        "sell_cash_rule",
+        "runtime_authority",
+        "cash_limit_authority",
+        "position_cash_authority",
+        "rdagent_rule",
+    ):
+        if key not in cash_constraint:
+            raise QlibAshareSemanticContractError(
+                f"pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must include {key}"
+            )
+    if cash_constraint.get("semantic_name") != "a_share_cash_buying_power_and_shorting_policy":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must describe A-share cash and shorting policy"
+        )
+    if cash_constraint.get("cash_state_field") != "cash":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must expose cash state"
+        )
+    if cash_constraint.get("cash_query_rule") != "buying_power_uses_position_get_cash_without_unsettled_cash":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare cash query rule"
+        )
+    if cash_constraint.get("buy_cash_rule") != "buy_orders_are_clipped_by_available_cash_and_transaction_cost":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare buy cash clipping"
+        )
+    if cash_constraint.get("minimum_cost_rule") != "orders_without_cash_for_minimum_cost_are_zeroed":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare minimum cost cash rule"
+        )
+    if cash_constraint.get("partial_buy_rule") != (
+        "cash_insufficient_orders_are_reduced_by_exchange_cash_limit_then_round_lot"
+    ):
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare partial buy rule"
+        )
+    if cash_constraint.get("shorting_policy") != "equity_short_selling_is_not_enabled":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must forbid implicit shorting"
+        )
+    if cash_constraint.get("sell_position_rule") != "sell_orders_are_clipped_by_position_get_sellable_amount":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare sell position clipping"
+        )
+    if cash_constraint.get("sell_cash_rule") != "sell_orders_zero_when_cash_plus_trade_value_cannot_cover_sell_cost":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must declare sell cash guard"
+        )
+    if cash_constraint.get("runtime_authority") != "qlib.backtest.exchange.Exchange._calc_trade_info_by_order":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must name exchange runtime authority"
+        )
+    if cash_constraint.get("cash_limit_authority") != "qlib.backtest.exchange.Exchange._get_buy_amount_by_cash_limit":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must name cash limit authority"
+        )
+    if cash_constraint.get("position_cash_authority") != "qlib.backtest.position.Position.get_cash":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must name position cash authority"
+        )
+    if cash_constraint.get("rdagent_rule") != "describe_only_do_not_redefine_cash_or_shorting_policy":
+        raise QlibAshareSemanticContractError(
+            "pyqlib A-share contract prompt_projection_payload cash_constraint_semantics must forbid RD-Agent cash redefinition"
+        )
     order_unit = _mapping(prompt_payload.get("order_unit_semantics"))
     for key in (
         "semantic_name",
@@ -977,6 +1058,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "price_adjustment_semantics",
         "price_limit_semantics",
         "settlement_semantics",
+        "cash_constraint_semantics",
         "price_limit_modes",
         "authoritative_limit_fields",
         "board_threshold_fields",
