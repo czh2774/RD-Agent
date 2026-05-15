@@ -25,6 +25,7 @@ on:
       - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
       - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
       - "rdagent/scenarios/qlib/proposal/model_proposal.py"
+      - "rdagent/scenarios/qlib/proposal/model_semantics.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -53,6 +54,7 @@ on:
       - "rdagent/scenarios/qlib/proposal/factor_proposal.py"
       - "rdagent/scenarios/qlib/proposal/factor_semantics.py"
       - "rdagent/scenarios/qlib/proposal/model_proposal.py"
+      - "rdagent/scenarios/qlib/proposal/model_semantics.py"
       - "rdagent/scenarios/qlib/prompts.yaml"
       - "rdagent/log/ui/app.py"
       - "test/qlib/test_ashare_semantics_contract.py"
@@ -92,6 +94,7 @@ jobs:
             rdagent/scenarios/qlib/proposal/factor_proposal.py \
             rdagent/scenarios/qlib/proposal/factor_semantics.py \
             rdagent/scenarios/qlib/proposal/model_proposal.py \
+            rdagent/scenarios/qlib/proposal/model_semantics.py \
             rdagent/log/ui/app.py \
             test/qlib/test_ashare_semantics_contract.py
 

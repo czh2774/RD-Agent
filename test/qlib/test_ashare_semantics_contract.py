@@ -22,6 +22,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
     QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES,
     QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS,
+    QLIB_ASHARE_FORBIDDEN_MODEL_TYPES,
     QLIB_ASHARE_LABEL_COLUMN,
     QLIB_ASHARE_LABEL_EXPRESSION,
     QLIB_ASHARE_LABEL_PROMPT_PATHS,
@@ -29,6 +30,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS,
     QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
     QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
+    QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
     QLIB_ASHARE_POINT_IN_TIME_REGISTRATION_RULE,
     QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS,
     QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS,
@@ -43,6 +45,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
     QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    QLIB_ASHARE_SUPPORTED_MODEL_TYPES,
     QLIB_ASHARE_TEMPLATE_BENCHMARK,
     QLIB_ASHARE_TEMPLATE_MARKET,
     QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
@@ -61,6 +64,9 @@ from rdagent.scenarios.qlib.proposal.factor_semantics import (
     build_qlib_ashare_factor_task_source_boundary,
     validate_qlib_factor_experiment_response,
     validate_qlib_factor_hypothesis_response,
+)
+from rdagent.scenarios.qlib.proposal.model_semantics import (
+    validate_qlib_model_experiment_response,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -320,6 +326,9 @@ def _prediction_signal_semantics() -> dict[str, Any]:
         ),
         "rdagent_model_output_format_rule": QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE,
         "rdagent_model_task_boundary_rule": QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE,
+        "rdagent_model_type_boundary_rule": QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE,
+        "rdagent_supported_model_types": list(QLIB_ASHARE_SUPPORTED_MODEL_TYPES),
+        "rdagent_forbidden_model_types": list(QLIB_ASHARE_FORBIDDEN_MODEL_TYPES),
         "rdagent_implementation_prompt_paths": list(QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS),
         "rdagent_prompt_paths": list(QLIB_ASHARE_PREDICTION_SIGNAL_PROMPT_PATHS),
         "rdagent_rule": "describe_only_do_not_redefine_prediction_signal_score_or_return_realization",
@@ -1779,6 +1788,7 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert "not_realized_or_executable_return" in boundary
     assert QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE in boundary
     assert QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE in boundary
+    assert QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE in boundary
     assert "not_graph_node_output" in boundary
 
     model_task_source = (REPO_ROOT / "rdagent/components/coder/model_coder/model.py").read_text()
@@ -1798,6 +1808,31 @@ def test_rd_agent_model_task_information_carries_qlib_prediction_signal_boundary
     assert "rdagent/components/coder/model_coder/model.py" in workflow
     assert "rdagent/components/coder/model_coder/prompts.yaml" in workflow
     assert "rdagent/scenarios/qlib/proposal/model_proposal.py" in workflow
+    assert "rdagent/scenarios/qlib/proposal/model_semantics.py" in workflow
+
+
+def test_rd_agent_model_experiment_validator_uses_qlib_model_type_boundary() -> None:
+    valid_payload = {
+        "temporal_alpha_model": {
+            "description": "Time-series model for Qlib daily A-share signals.",
+            "formulation": r"\hat{y}_{t,i}=f(x_{t-19:t,i})",
+            "architecture": "A compact GRU over registered daily Qlib A-share fields.",
+            "variables": {"x": "Qlib daily A-share feature window."},
+            "hyperparameters": {"hidden_size": 32},
+            "training_hyperparameters": {"n_epochs": 10, "lr": 0.001},
+            "model_type": "TimeSeries",
+        }
+    }
+    assert validate_qlib_model_experiment_response(valid_payload)["temporal_alpha_model"]["model_type"] == "TimeSeries"
+
+    for forbidden_model_type in ("Graph", "XGBoost", "TimesSeries", "Tabular or TimeSeries"):
+        invalid_payload = deepcopy(valid_payload)
+        invalid_payload["temporal_alpha_model"]["model_type"] = forbidden_model_type
+        with pytest.raises(ValueError, match="Qlib A-share model_type"):
+            validate_qlib_model_experiment_response(invalid_payload)
+
+    proposal_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/model_proposal.py").read_text()
+    assert "validate_qlib_model_experiment_response(json.loads(response))" in proposal_source
 
 
 def test_rd_agent_factor_coder_prompts_enforce_qlib_source_boundary_as_non_bypassable() -> None:
@@ -2694,6 +2729,28 @@ def test_malformed_qlib_prompt_projection_with_mutable_model_task_boundary_rule_
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_model_type_boundary_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"][
+        "rdagent_model_type_boundary_rule"
+    ] = "rdagent_qlib_model_experiment_outputs_may_use_graph_or_xgboost_model_types"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_graph_model_type_support_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_supported_model_types"] = [
+        "Tabular",
+        "TimeSeries",
+        "Graph",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="prediction_signal_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_missing_model_implementation_prompt_consumer_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["prediction_signal_semantics"]["rdagent_implementation_prompt_paths"] = [
@@ -3371,6 +3428,9 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     ) in text
     assert f"prediction-signal model output format: {QLIB_ASHARE_MODEL_OUTPUT_FORMAT_RULE}" in text
     assert f"prediction-signal model task boundary: {QLIB_ASHARE_MODEL_TASK_BOUNDARY_RULE}" in text
+    assert f"prediction-signal model type boundary: {QLIB_ASHARE_MODEL_TYPE_BOUNDARY_RULE}" in text
+    assert "prediction-signal supported model types: Tabular, TimeSeries" in text
+    assert "prediction-signal forbidden model types: Graph, XGBoost" in text
     assert (
         "prediction-signal implementation prompts: "
         + ", ".join(str(path) for path in QLIB_ASHARE_MODEL_IMPLEMENTATION_PROMPT_PATHS)
