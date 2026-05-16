@@ -17,6 +17,9 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
+    QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE,
+    QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE,
     QlibAshareSemanticContractError,
 )
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
@@ -115,31 +118,55 @@ def _extract_metric_value(result: Any, metric_name: str) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def _require_feedback_comparison_metric(result: Any, metric_name: str) -> float:
+def _require_single_metric_value(
+    result: Any,
+    metric_name: str,
+    *,
+    missing_failure: str,
+    invalid_failure: str,
+) -> float:
     if result is None:
-        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE)
+        raise QlibAshareSemanticContractError(missing_failure)
     try:
         frame = pd.DataFrame(result)
     except Exception as exc:  # noqa: BLE001
-        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE) from exc
+        raise QlibAshareSemanticContractError(invalid_failure) from exc
     if metric_name not in frame.index:
-        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE)
+        raise QlibAshareSemanticContractError(missing_failure)
     metric_row = frame.loc[metric_name]
     if isinstance(metric_row, pd.DataFrame):
-        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+        raise QlibAshareSemanticContractError(invalid_failure)
     candidates = metric_row.tolist() if isinstance(metric_row, pd.Series) else [metric_row]
     values: list[float] = []
     for candidate in candidates:
         try:
             value = float(candidate)
         except (TypeError, ValueError) as exc:
-            raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE) from exc
+            raise QlibAshareSemanticContractError(invalid_failure) from exc
         if not math.isfinite(value):
-            raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+            raise QlibAshareSemanticContractError(invalid_failure)
         values.append(value)
     if len(values) != 1:
-        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+        raise QlibAshareSemanticContractError(invalid_failure)
     return values[0]
+
+
+def _require_feedback_comparison_metric(result: Any, metric_name: str) -> float:
+    return _require_single_metric_value(
+        result,
+        metric_name,
+        missing_failure=QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE,
+        invalid_failure=QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE,
+    )
+
+
+def _require_model_feedback_prompt_metric(result: Any, metric_name: str) -> float:
+    return _require_single_metric_value(
+        result,
+        metric_name,
+        missing_failure=QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE,
+        invalid_failure=QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE,
+    )
 
 
 def _require_current_feedback_primary_metric(current_result: Any) -> float:
@@ -282,6 +309,16 @@ def process_results(current_result, sota_result):
     return "; ".join(results)
 
 
+def format_model_feedback_result_for_prompt(result: Any, *, missing_result_value: str | None = None) -> str:
+    if result is None and missing_result_value is not None:
+        return missing_result_value
+    results = []
+    for metric in QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS:
+        value = _require_model_feedback_prompt_metric(result, metric)
+        results.append(f"{metric}: {value:.6f}")
+    return "; ".join(results)
+
+
 class QlibFactorExperiment2Feedback(Experiment2Feedback):
     def generate_feedback(self, exp: Experiment, trace: Trace) -> HypothesisFeedback:
         """
@@ -378,10 +415,10 @@ class QlibModelExperiment2Feedback(Experiment2Feedback):
             sota_hypothesis=SOTA_hypothesis,
             sota_task=SOTA_experiment.sub_tasks[0].get_task_information() if SOTA_hypothesis else None,
             sota_code=SOTA_experiment.sub_workspace_list[0].file_dict.get("model.py") if SOTA_hypothesis else None,
-            sota_result=SOTA_experiment.result.loc[IMPORTANT_METRICS] if SOTA_hypothesis else None,
+            sota_result=format_model_feedback_result_for_prompt(SOTA_experiment.result) if SOTA_hypothesis else None,
             hypothesis=hypothesis,
             exp=exp,
-            exp_result=exp.result.loc[IMPORTANT_METRICS] if exp.result is not None else "execution failed",
+            exp_result=format_model_feedback_result_for_prompt(exp.result, missing_result_value="execution failed"),
         )
 
         # Call the APIBackend to generate the response for hypothesis feedback
