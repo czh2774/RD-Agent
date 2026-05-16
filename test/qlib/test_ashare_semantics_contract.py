@@ -37,12 +37,15 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_EXCESS_RETURN_FORBIDDEN_SUBSTITUTIONS,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITH_COST,
     QLIB_ASHARE_EXCESS_RETURN_METRIC_PATH_WITHOUT_COST,
+    QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE,
     QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE,
     QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES,
     QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_PROMPT_PATHS,
     QLIB_ASHARE_FEEDBACK_METRIC_SOURCE_PATHS,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
+    QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
+    QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
     QLIB_ASHARE_FORBIDDEN_DEFAULT_RESEARCH_SOURCES,
     QLIB_ASHARE_FORBIDDEN_LEGACY_EXCHANGE_KWARGS,
     QLIB_ASHARE_FORBIDDEN_MODEL_TYPES,
@@ -90,6 +93,7 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS,
     QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS,
     QLIB_ASHARE_SIGNAL_IC_METRIC_PATHS,
+    QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE,
     QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE,
     QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT,
     QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE,
@@ -506,6 +510,10 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "bandit_metric_extraction_rule": QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
         "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
+        "explicit_feedback_decision_rule": QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE,
+        "feedback_primary_metric_missing_failure": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
+        "feedback_primary_metric_invalid_failure": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
+        "sota_primary_metric_missing_rule": QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
         "bandit_annualized_excess_return_with_cost_field": (
@@ -748,6 +756,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_portfolio_risk_analysis_metrics",
                 "redefine_benchmark_relative_excess_return_or_cost_treatment",
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
+                "bypass_feedback_primary_metric_with_llm_feedback_decision",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
                 "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example",
@@ -1349,6 +1358,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric"
         in boundary["rdagent_forbidden_actions"]
     )
+    assert "bypass_feedback_primary_metric_with_llm_feedback_decision" in boundary["rdagent_forbidden_actions"]
     assert "redefine_benchmark_return_series_or_default_benchmark" in boundary["rdagent_forbidden_actions"]
     assert (
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark"
@@ -1634,6 +1644,10 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE == feedback["bandit_metric_extraction_rule"]
     assert QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE == feedback["bandit_metric_missing_failure"]
     assert QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE == feedback["bandit_metric_invalid_failure"]
+    assert QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE == feedback["explicit_feedback_decision_rule"]
+    assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE == feedback["feedback_primary_metric_missing_failure"]
+    assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE == feedback["feedback_primary_metric_invalid_failure"]
+    assert QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE == feedback["sota_primary_metric_missing_rule"]
     assert QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE == feedback["derived_bandit_utility_rule"]
     assert (
         QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD
@@ -1703,6 +1717,10 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)" in feedback_source
     assert "QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
     assert "metric_name = QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC" in feedback_source
+    assert "QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE" in feedback_source
+    assert "explicit_decision != metric_decision" in feedback_source
+    assert "QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE" in feedback_source
+    assert "QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE" in feedback_source
     assert "QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME" in bandit_source
     assert "drawdown_adjusted_return" in bandit_source
     assert "sharpe" not in bandit_source.lower()
@@ -1714,6 +1732,102 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     for path in QLIB_ASHARE_PROMPT_METRIC_PATHS:
         assert path in prompts_source
     assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
+
+
+def _feedback_result(primary_metric_value: Any = 0.02) -> dict[str, dict[str, Any]]:
+    return {
+        "0": {
+            "IC": 0.03,
+            QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC: primary_metric_value,
+            "1day.excess_return_with_cost.max_drawdown": -0.1,
+        }
+    }
+
+
+def test_rd_agent_feedback_normalization_accepts_matching_primary_metric_decision() -> None:
+    from rdagent.scenarios.qlib.developer.feedback import normalize_feedback_response
+
+    response = normalize_feedback_response(
+        {
+            "Observations": "Current result improved the Qlib primary metric.",
+            "Feedback for Hypothesis": "supported",
+            "New Hypothesis": "continue",
+            "Reasoning": "primary metric improved",
+            "Decision": "yes",
+        },
+        current_result=_feedback_result(0.03),
+        sota_result=_feedback_result(0.02),
+    )
+
+    assert response["Decision"] is True
+
+
+def test_rd_agent_feedback_normalization_infers_missing_decision_from_primary_metric() -> None:
+    from rdagent.scenarios.qlib.developer.feedback import normalize_feedback_response
+
+    response = normalize_feedback_response(
+        {
+            "Observations": "Current result improved the Qlib primary metric.",
+            "Feedback for Hypothesis": "supported",
+            "New Hypothesis": "continue",
+            "Reasoning": "primary metric improved",
+        },
+        current_result=_feedback_result(0.03),
+        sota_result=_feedback_result(0.02),
+    )
+
+    assert response["Decision"] is True
+
+
+def test_rd_agent_feedback_normalization_rejects_llm_decision_conflicting_with_primary_metric() -> None:
+    from rdagent.scenarios.qlib.developer.feedback import normalize_feedback_response
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE):
+        normalize_feedback_response(
+            {
+                "Observations": "LLM says replace despite weaker primary metric.",
+                "Feedback for Hypothesis": "unsupported",
+                "New Hypothesis": "continue",
+                "Reasoning": "LLM override",
+                "Decision": "yes",
+            },
+            current_result=_feedback_result(0.01),
+            sota_result=_feedback_result(0.02),
+        )
+
+
+def test_rd_agent_feedback_normalization_fails_closed_without_current_primary_metric() -> None:
+    from rdagent.scenarios.qlib.developer.feedback import normalize_feedback_response
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE):
+        normalize_feedback_response(
+            {
+                "Observations": "No primary metric.",
+                "Feedback for Hypothesis": "unsupported",
+                "New Hypothesis": "continue",
+                "Reasoning": "missing metric",
+                "Decision": "no",
+            },
+            current_result={"0": {"IC": 0.03}},
+            sota_result=_feedback_result(0.02),
+        )
+
+
+def test_rd_agent_feedback_normalization_fails_closed_on_invalid_current_primary_metric() -> None:
+    from rdagent.scenarios.qlib.developer.feedback import normalize_feedback_response
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE):
+        normalize_feedback_response(
+            {
+                "Observations": "Invalid primary metric.",
+                "Feedback for Hypothesis": "unsupported",
+                "New Hypothesis": "continue",
+                "Reasoning": "invalid metric",
+                "Decision": "no",
+            },
+            current_result=_feedback_result("not-a-number"),
+            sota_result=_feedback_result(0.02),
+        )
 
 
 def test_rd_agent_templates_bind_qlib_owned_universe_and_benchmark_without_cross_aliasing() -> None:
@@ -3703,6 +3817,36 @@ def test_malformed_qlib_prompt_projection_with_mutable_bandit_metric_failure_rul
         build_rd_agent_ashare_semantic_context(contract)
 
 
+def test_malformed_qlib_prompt_projection_with_mutable_explicit_feedback_decision_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "explicit_feedback_decision_rule"
+    ] = "llm_feedback_decision_can_override_primary_metric"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_feedback_primary_metric_missing_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "feedback_primary_metric_missing_failure"
+    ] = "missing_current_primary_metric_uses_llm_decision"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_feedback_primary_metric_invalid_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "feedback_primary_metric_invalid_failure"
+    ] = "invalid_current_primary_metric_uses_llm_decision"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
 def test_malformed_qlib_prompt_projection_with_mutable_bandit_drawdown_sign_rule_fails_closed() -> None:
     contract = _valid_contract()
     contract["prompt_projection_payload"]["feedback_metric_semantics"][
@@ -4434,6 +4578,10 @@ def test_formatted_context_is_operator_readable_without_raw_cost_redefinition() 
     assert f"feedback-metric bandit extraction rule: {QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE}" in text
     assert f"feedback-metric bandit missing failure: {QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE}" in text
     assert f"feedback-metric bandit invalid failure: {QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE}" in text
+    assert f"feedback-metric explicit decision rule: {QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE}" in text
+    assert f"feedback-metric primary missing failure: {QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE}" in text
+    assert f"feedback-metric primary invalid failure: {QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE}" in text
+    assert f"feedback-metric SOTA primary missing rule: {QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE}" in text
     assert f"feedback-metric paths: {', '.join(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)}" in text
     assert f"feedback-metric bandit utility: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME}" in text
     assert f"feedback-metric utility rule: {QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE}" in text
