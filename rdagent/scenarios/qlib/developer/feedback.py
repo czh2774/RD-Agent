@@ -11,7 +11,9 @@ from rdagent.log import rdagent_logger as logger
 from rdagent.oai.llm_utils import APIBackend
 from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE,
-    QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
+    QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE,
+    QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS,
+    QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
@@ -23,7 +25,7 @@ from rdagent.utils.agent.tpl import T
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 
-IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS)
+IMPORTANT_METRICS = list(QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS)
 
 
 def _render_feedback_value(value: Any) -> str:
@@ -111,6 +113,33 @@ def _extract_metric_value(result: Any, metric_name: str) -> float | None:
     except (TypeError, ValueError):
         return None
     return value if math.isfinite(value) else None
+
+
+def _require_feedback_comparison_metric(result: Any, metric_name: str) -> float:
+    if result is None:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE)
+    try:
+        frame = pd.DataFrame(result)
+    except Exception as exc:  # noqa: BLE001
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE) from exc
+    if metric_name not in frame.index:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE)
+    metric_row = frame.loc[metric_name]
+    if isinstance(metric_row, pd.DataFrame):
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+    candidates = metric_row.tolist() if isinstance(metric_row, pd.Series) else [metric_row]
+    values: list[float] = []
+    for candidate in candidates:
+        try:
+            value = float(candidate)
+        except (TypeError, ValueError) as exc:
+            raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE) from exc
+        if not math.isfinite(value):
+            raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+        values.append(value)
+    if len(values) != 1:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE)
+    return values[0]
 
 
 def _require_current_feedback_primary_metric(current_result: Any) -> float:
@@ -245,33 +274,12 @@ def normalize_feedback_response(
 
 
 def process_results(current_result, sota_result):
-    # Convert the results to dataframes
-    current_df = pd.DataFrame(current_result)
-    sota_df = pd.DataFrame(sota_result)
-
-    # Set the metric as the index
-    current_df.index.name = "metric"
-    sota_df.index.name = "metric"
-
-    # Rename the value column to reflect the result type
-    current_df.rename(columns={"0": "Current Result"}, inplace=True)
-    sota_df.rename(columns={"0": "SOTA Result"}, inplace=True)
-
-    # Combine the dataframes on the Metric index
-    combined_df = pd.concat([current_df, sota_df], axis=1)
-
-    # Filter the combined DataFrame to retain only the important metrics
-    filtered_combined_df = combined_df.loc[IMPORTANT_METRICS]
-
-    def format_filtered_combined_df(filtered_combined_df: pd.DataFrame) -> str:
-        results = []
-        for metric, row in filtered_combined_df.iterrows():
-            current = row["Current Result"]
-            sota = row["SOTA Result"]
-            results.append(f"{metric} of Current Result is {current:.6f}, of SOTA Result is {sota:.6f}")
-        return "; ".join(results)
-
-    return format_filtered_combined_df(filtered_combined_df)
+    results = []
+    for metric in IMPORTANT_METRICS:
+        current = _require_feedback_comparison_metric(current_result, metric)
+        sota = _require_feedback_comparison_metric(sota_result, metric)
+        results.append(f"{metric} of Current Result is {current:.6f}, of SOTA Result is {sota:.6f}")
+    return "; ".join(results)
 
 
 class QlibFactorExperiment2Feedback(Experiment2Feedback):
