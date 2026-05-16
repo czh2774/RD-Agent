@@ -22,6 +22,14 @@ QLIB_ASHARE_LABEL_TEMPLATE_PATHS = (
 QLIB_ASHARE_TEMPLATE_MARKET = "csi300"
 QLIB_ASHARE_TEMPLATE_BENCHMARK = "SH000300"
 QLIB_ASHARE_UNIVERSE_BENCHMARK_TEMPLATE_PATHS = QLIB_ASHARE_LABEL_TEMPLATE_PATHS
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_SOURCE_PATH = "qlib/contrib/strategy/signal_strategy.py"
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT = "China A-share enhanced indexing"
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE = "CSI 300"
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE = "SH000300"
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES = ("S&P 500", "SP500", "S&P500")
+QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE = (
+    "enhanced_indexing_strategy_examples_must_use_a_share_benchmark_context_not_us_index_examples"
+)
 QLIB_ASHARE_RUNTIME_TEMPLATE_PATHS = QLIB_ASHARE_LABEL_TEMPLATE_PATHS
 QLIB_ASHARE_RUNTIME_EXCHANGE_KWARGS = {
     "limit_threshold": "joinquant_ashare",
@@ -406,6 +414,7 @@ def format_rd_agent_ashare_semantic_context(
     feedback_metric = _mapping(prompt_payload.get("feedback_metric_semantics"))
     benchmark_return = _mapping(prompt_payload.get("benchmark_return_semantics"))
     universe_benchmark_binding = _mapping(prompt_payload.get("universe_benchmark_binding_semantics"))
+    strategy_benchmark_doc = _mapping(prompt_payload.get("strategy_benchmark_documentation_semantics"))
     runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
     research_data_source = _mapping(prompt_payload.get("research_data_source_semantics"))
     research_persona = _mapping(prompt_payload.get("research_persona_semantics"))
@@ -644,6 +653,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- universe-benchmark benchmark rule: {universe_benchmark_binding.get('benchmark_rule')}",
             f"- universe-benchmark separation rule: {universe_benchmark_binding.get('separation_rule')}",
             f"- universe-benchmark template rule: {universe_benchmark_binding.get('rdagent_rule')}",
+            f"- strategy-benchmark doc context: {strategy_benchmark_doc.get('benchmark_context')}",
+            f"- strategy-benchmark doc example: {strategy_benchmark_doc.get('benchmark_example')}",
+            f"- strategy-benchmark doc code example: {strategy_benchmark_doc.get('benchmark_code_example')}",
+            f"- strategy-benchmark doc rule: {strategy_benchmark_doc.get('documentation_rule')}",
+            "- strategy-benchmark forbidden examples: "
+            + ", ".join(str(item) for item in strategy_benchmark_doc.get("forbidden_cross_market_examples", [])),
             f"- runtime-handoff template binding: {runtime_template_binding.get('binding_kind')}",
             f"- runtime-handoff template rule: {runtime_template_binding.get('runtime_rule')}",
             f"- runtime-handoff prompt boundary: {runtime_template_binding.get('prompt_boundary_rule')}",
@@ -815,6 +830,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
+        "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example",
         "redefine_runtime_handoff_or_template_execution_kwargs",
         "redefine_research_data_source_availability_or_imply_unregistered_sources",
         "redefine_research_persona_or_replace_a_share_market_context",
@@ -876,6 +892,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "strategy_benchmark_documentation_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
         "research_persona_semantics",
@@ -922,6 +939,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "strategy_benchmark_documentation_semantics",
         "runtime_handoff_template_binding_semantics",
         "research_data_source_semantics",
         "research_persona_semantics",
@@ -2220,6 +2238,24 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise QlibAshareSemanticContractError(
             "pyqlib A-share contract universe_benchmark_binding_semantics must not use a forbidden benchmark value"
         )
+    strategy_benchmark_doc = _mapping(prompt_payload.get("strategy_benchmark_documentation_semantics"))
+    expected_strategy_benchmark_doc_values = {
+        "semantic_name": "a_share_enhanced_indexing_benchmark_documentation",
+        "strategy_authority": "qlib.contrib.strategy.signal_strategy.EnhancedIndexingStrategy",
+        "documentation_source_path": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_SOURCE_PATH,
+        "benchmark_context": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CONTEXT,
+        "benchmark_example": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_EXAMPLE,
+        "benchmark_code_example": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_CODE_EXAMPLE,
+        "forbidden_cross_market_examples": list(QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_FORBIDDEN_EXAMPLES),
+        "documentation_rule": QLIB_ASHARE_STRATEGY_BENCHMARK_DOC_RULE,
+        "rdagent_rule": "consume_a_share_strategy_benchmark_examples_without_cross_market_index_aliases",
+    }
+    for key, expected_value in expected_strategy_benchmark_doc_values.items():
+        if strategy_benchmark_doc.get(key) != expected_value:
+            raise QlibAshareSemanticContractError(
+                "pyqlib A-share contract prompt_projection_payload "
+                f"strategy_benchmark_documentation_semantics must preserve {key}"
+            )
     runtime_template_binding = _mapping(prompt_payload.get("runtime_handoff_template_binding_semantics"))
     expected_runtime_template_binding_values = {
         "semantic_name": "a_share_rd_agent_runtime_handoff_template_binding",
@@ -3072,6 +3108,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_metric_semantics",
         "benchmark_return_semantics",
         "universe_benchmark_binding_semantics",
+        "strategy_benchmark_documentation_semantics",
         "research_data_source_semantics",
         "research_persona_semantics",
         "suspension_tradability_semantics",
