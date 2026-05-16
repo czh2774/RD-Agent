@@ -173,6 +173,7 @@ QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS = QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATH
 QLIB_ASHARE_PROMPT_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS = QLIB_ASHARE_FEEDBACK_METRIC_PATHS
+QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS = QLIB_ASHARE_FEEDBACK_METRIC_PATHS
 QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC = QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS[0]
 QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE = (
     "first_round_without_sota_must_not_treat_positive_icir_or_not_too_negative_performance_as_success_proxy"
@@ -200,6 +201,15 @@ QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE = (
 )
 QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE = (
     "non_numeric_or_non_finite_feedback_comparison_metric_fails_closed_without_partial_comparison"
+)
+QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE = (
+    "model_feedback_prompts_must_project_exact_qlib_feedback_metric_paths_before_prompt_rendering"
+)
+QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE = (
+    "missing_model_feedback_prompt_metric_path_fails_closed_without_partial_prompt_projection"
+)
+QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE = (
+    "non_numeric_or_non_finite_model_feedback_prompt_metric_fails_closed_without_partial_prompt_projection"
 )
 QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES = (
     "not too negative",
@@ -642,6 +652,14 @@ def format_rd_agent_ashare_semantic_context(
             f"{feedback_metric.get('feedback_comparison_invalid_failure')}",
             "- feedback-metric comparison paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_comparison_metric_paths", [])),
+            "- feedback-metric model prompt result rule: "
+            f"{feedback_metric.get('model_feedback_prompt_result_rule')}",
+            "- feedback-metric model prompt missing failure: "
+            f"{feedback_metric.get('model_feedback_prompt_missing_failure')}",
+            "- feedback-metric model prompt invalid failure: "
+            f"{feedback_metric.get('model_feedback_prompt_invalid_failure')}",
+            "- feedback-metric model prompt paths: "
+            + ", ".join(str(item) for item in feedback_metric.get("model_feedback_prompt_metric_paths", [])),
             "- feedback-metric paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
@@ -865,6 +883,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "bypass_feedback_primary_metric_with_llm_feedback_decision",
         "emit_partial_feedback_metric_comparison_or_use_non_qlib_metric_rows",
+        "render_model_feedback_prompt_with_raw_result_frame_or_partial_metric_slice",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
         "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example",
@@ -2067,6 +2086,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prompt_metric_paths",
         "feedback_metric_paths",
         "feedback_comparison_metric_paths",
+        "model_feedback_prompt_metric_paths",
         "bandit_metric_paths",
         "feedback_primary_metric",
         "sota_fallback_rule",
@@ -2081,6 +2101,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_comparison_result_rule",
         "feedback_comparison_missing_failure",
         "feedback_comparison_invalid_failure",
+        "model_feedback_prompt_result_rule",
+        "model_feedback_prompt_missing_failure",
+        "model_feedback_prompt_invalid_failure",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
         "bandit_annualized_excess_return_with_cost_field",
@@ -2116,6 +2139,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "prompt_metric_paths": list(QLIB_ASHARE_PROMPT_METRIC_PATHS),
         "feedback_metric_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS),
         "feedback_comparison_metric_paths": list(QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS),
+        "model_feedback_prompt_metric_paths": list(QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS),
         "bandit_metric_paths": list(QLIB_ASHARE_BANDIT_METRIC_PATHS),
         "feedback_primary_metric": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
         "sota_fallback_rule": "missing_explicit_feedback_decision_uses_feedback_primary_metric_improvement",
@@ -2130,6 +2154,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_comparison_result_rule": QLIB_ASHARE_FEEDBACK_COMPARISON_RESULT_RULE,
         "feedback_comparison_missing_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE,
         "feedback_comparison_invalid_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE,
+        "model_feedback_prompt_result_rule": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE,
+        "model_feedback_prompt_missing_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE,
+        "model_feedback_prompt_invalid_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
         "bandit_annualized_excess_return_with_cost_field": QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD,
