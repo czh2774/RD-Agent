@@ -179,6 +179,18 @@ QLIB_ASHARE_FEEDBACK_FIRST_ROUND_DECISION_RULE = (
 QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE = "required_bandit_metrics_must_be_present_numeric_and_finite"
 QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE = "missing_bandit_metric_path_fails_closed_without_zero_default"
 QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE = "non_numeric_or_non_finite_bandit_metric_fails_closed_without_zero_default"
+QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE = (
+    "explicit_llm_feedback_decision_must_match_feedback_primary_metric_improvement"
+)
+QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE = (
+    "missing_current_feedback_primary_metric_fails_closed_without_llm_decision_fallback"
+)
+QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE = (
+    "non_numeric_or_non_finite_feedback_primary_metric_fails_closed_without_llm_decision_fallback"
+)
+QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE = (
+    "missing_sota_feedback_primary_metric_allows_valid_current_result_as_candidate"
+)
 QLIB_ASHARE_FEEDBACK_FORBIDDEN_FIRST_ROUND_SUCCESS_PROXIES = (
     "not too negative",
     "performance is not too negative",
@@ -607,6 +619,12 @@ def format_rd_agent_ashare_semantic_context(
             f"- feedback-metric bandit extraction rule: {feedback_metric.get('bandit_metric_extraction_rule')}",
             f"- feedback-metric bandit missing failure: {feedback_metric.get('bandit_metric_missing_failure')}",
             f"- feedback-metric bandit invalid failure: {feedback_metric.get('bandit_metric_invalid_failure')}",
+            f"- feedback-metric explicit decision rule: {feedback_metric.get('explicit_feedback_decision_rule')}",
+            "- feedback-metric primary missing failure: "
+            f"{feedback_metric.get('feedback_primary_metric_missing_failure')}",
+            "- feedback-metric primary invalid failure: "
+            f"{feedback_metric.get('feedback_primary_metric_invalid_failure')}",
+            f"- feedback-metric SOTA primary missing rule: {feedback_metric.get('sota_primary_metric_missing_rule')}",
             "- feedback-metric paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_metric_paths", [])),
             f"- feedback-metric bandit utility: {feedback_metric.get('derived_bandit_utility_name')}",
@@ -828,6 +846,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_portfolio_risk_analysis_metrics",
         "redefine_benchmark_relative_excess_return_or_cost_treatment",
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
+        "bypass_feedback_primary_metric_with_llm_feedback_decision",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
         "redefine_strategy_benchmark_documentation_or_use_cross_market_index_example",
@@ -2036,6 +2055,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_extraction_rule",
         "bandit_metric_missing_failure",
         "bandit_metric_invalid_failure",
+        "explicit_feedback_decision_rule",
+        "feedback_primary_metric_missing_failure",
+        "feedback_primary_metric_invalid_failure",
+        "sota_primary_metric_missing_rule",
         "derived_bandit_utility_name",
         "derived_bandit_utility_rule",
         "bandit_annualized_excess_return_with_cost_field",
@@ -2077,6 +2100,10 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "bandit_metric_extraction_rule": QLIB_ASHARE_BANDIT_METRIC_EXTRACTION_RULE,
         "bandit_metric_missing_failure": QLIB_ASHARE_BANDIT_METRIC_MISSING_FAILURE,
         "bandit_metric_invalid_failure": QLIB_ASHARE_BANDIT_METRIC_INVALID_FAILURE,
+        "explicit_feedback_decision_rule": QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE,
+        "feedback_primary_metric_missing_failure": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
+        "feedback_primary_metric_invalid_failure": QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
+        "sota_primary_metric_missing_rule": QLIB_ASHARE_SOTA_PRIMARY_METRIC_MISSING_RULE,
         "derived_bandit_utility_name": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME,
         "derived_bandit_utility_rule": QLIB_ASHARE_BANDIT_DERIVED_UTILITY_RULE,
         "bandit_annualized_excess_return_with_cost_field": QLIB_ASHARE_BANDIT_ANNUALIZED_EXCESS_RETURN_WITH_COST_FIELD,

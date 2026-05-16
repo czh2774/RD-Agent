@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,8 +10,12 @@ from rdagent.core.proposal import Experiment2Feedback, HypothesisFeedback, Trace
 from rdagent.log import rdagent_logger as logger
 from rdagent.oai.llm_utils import APIBackend
 from rdagent.scenarios.qlib.ashare_semantics import (
+    QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE,
     QLIB_ASHARE_FEEDBACK_METRIC_PATHS,
     QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC,
+    QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE,
+    QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE,
+    QlibAshareSemanticContractError,
 )
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils import convert2bool
@@ -95,14 +100,33 @@ def _extract_metric_value(result: Any, metric_name: str) -> float | None:
     if isinstance(metric_row, pd.Series):
         for candidate in metric_row.tolist():
             try:
-                return float(candidate)
+                value = float(candidate)
             except (TypeError, ValueError):
                 continue
+            if math.isfinite(value):
+                return value
         return None
     try:
-        return float(metric_row)
+        value = float(metric_row)
     except (TypeError, ValueError):
         return None
+    return value if math.isfinite(value) else None
+
+
+def _require_current_feedback_primary_metric(current_result: Any) -> float:
+    metric_name = QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC
+    if current_result is None:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE)
+    try:
+        frame = pd.DataFrame(current_result)
+    except Exception as exc:  # noqa: BLE001
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE) from exc
+    if metric_name not in frame.index:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_MISSING_FAILURE)
+    metric_value = _extract_metric_value(current_result, metric_name)
+    if metric_value is None:
+        raise QlibAshareSemanticContractError(QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC_INVALID_FAILURE)
+    return metric_value
 
 
 def infer_replace_best_result(
@@ -110,10 +134,8 @@ def infer_replace_best_result(
     sota_result: dict[str, Any] | None,
 ) -> bool:
     metric_name = QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC
-    current_metric = _extract_metric_value(current_result, metric_name)
+    current_metric = _require_current_feedback_primary_metric(current_result)
     sota_metric = _extract_metric_value(sota_result, metric_name)
-    if current_metric is None:
-        return False
     if sota_metric is None:
         return True
     return current_metric > sota_metric
@@ -196,14 +218,22 @@ def normalize_feedback_response(
         if key in payload:
             decision_value = payload[key]
             break
+    metric_decision = infer_replace_best_result(current_result, sota_result)
     if decision_value is None:
-        decision = infer_replace_best_result(current_result, sota_result)
+        decision = metric_decision
         logger.warning(
             "Feedback JSON did not include an explicit replace/decision flag; "
             "inferring it from Qlib feedback primary metric improvement."
         )
     else:
-        decision = convert2bool(_render_feedback_value(decision_value))
+        explicit_decision = convert2bool(_render_feedback_value(decision_value))
+        if explicit_decision != metric_decision:
+            raise QlibAshareSemanticContractError(
+                f"{QLIB_ASHARE_EXPLICIT_FEEDBACK_DECISION_RULE}: "
+                f"explicit feedback decision {explicit_decision!r} conflicts with "
+                f"Qlib feedback primary metric decision {metric_decision!r}"
+            )
+        decision = explicit_decision
 
     return {
         "Observations": str(observations),
