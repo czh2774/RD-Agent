@@ -16,6 +16,10 @@ from rdagent.scenarios.qlib.proposal.factor_semantics import (
     validate_qlib_factor_experiment_response,
     validate_qlib_factor_hypothesis_response,
 )
+from rdagent.scenarios.qlib.trace_prompt import (
+    render_hypothesis_and_feedback,
+    render_last_hypothesis_and_feedback,
+)
 from rdagent.utils.agent.tpl import T
 
 QlibFactorHypothesis = Hypothesis
@@ -27,16 +31,12 @@ class QlibFactorHypothesisGen(FactorHypothesisGen):
 
     def prepare_context(self, trace: Trace) -> Tuple[dict, bool]:
         hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:hypothesis_and_feedback").r(
-                trace=trace,
-            )
+            render_hypothesis_and_feedback(trace)
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
         )
         last_hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:last_hypothesis_and_feedback").r(
-                experiment=trace.hist[-1][0], feedback=trace.hist[-1][1]
-            )
+            render_last_hypothesis_and_feedback(experiment=trace.hist[-1][0], feedback=trace.hist[-1][1])
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
         )
@@ -88,9 +88,7 @@ class QlibFactorHypothesis2Experiment(FactorHypothesis2Experiment):
                     specific_trace.hist.insert(0, trace.hist[i])
             if len(specific_trace.hist) > 0:
                 specific_trace.hist.reverse()
-                hypothesis_and_feedback = T("scenarios.qlib.prompts:hypothesis_and_feedback").r(
-                    trace=specific_trace,
-                )
+                hypothesis_and_feedback = render_hypothesis_and_feedback(specific_trace)
             else:
                 hypothesis_and_feedback = "No previous hypothesis and feedback available."
 

@@ -16,6 +16,11 @@ from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.scenarios.qlib.proposal.model_semantics import (
     validate_qlib_model_experiment_response,
 )
+from rdagent.scenarios.qlib.trace_prompt import (
+    render_hypothesis_and_feedback,
+    render_last_hypothesis_and_feedback,
+    render_sota_hypothesis_and_feedback,
+)
 from rdagent.utils.agent.tpl import T
 
 QlibModelHypothesis = Hypothesis
@@ -27,17 +32,13 @@ class QlibModelHypothesisGen(ModelHypothesisGen):
 
     def prepare_context(self, trace: Trace) -> Tuple[dict, bool]:
         hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:hypothesis_and_feedback").r(
-                trace=trace,
-            )
+            render_hypothesis_and_feedback(trace)
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
         )
 
         last_hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:last_hypothesis_and_feedback").r(
-                experiment=trace.hist[-1][0], feedback=trace.hist[-1][1]
-            )
+            render_last_hypothesis_and_feedback(experiment=trace.hist[-1][0], feedback=trace.hist[-1][1])
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
         )
@@ -48,8 +49,9 @@ class QlibModelHypothesisGen(ModelHypothesisGen):
         else:
             for i in range(len(trace.hist) - 1, -1, -1):
                 if trace.hist[i][1].decision:
-                    sota_hypothesis_and_feedback = T("scenarios.qlib.prompts:sota_hypothesis_and_feedback").r(
-                        experiment=trace.hist[i][0], feedback=trace.hist[i][1]
+                    sota_hypothesis_and_feedback = render_sota_hypothesis_and_feedback(
+                        experiment=trace.hist[i][0],
+                        feedback=trace.hist[i][1],
                     )
                     break
             else:
@@ -108,24 +110,18 @@ class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
                     specific_trace.hist.insert(0, trace.hist[i])
             if len(specific_trace.hist) > 0:
                 specific_trace.hist.reverse()
-                hypothesis_and_feedback = T("scenarios.qlib.prompts:hypothesis_and_feedback").r(
-                    trace=specific_trace,
-                )
+                hypothesis_and_feedback = render_hypothesis_and_feedback(specific_trace)
             else:
                 hypothesis_and_feedback = "No previous hypothesis and feedback available."
 
         last_hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:last_hypothesis_and_feedback").r(
-                experiment=last_experiment, feedback=last_feedback
-            )
+            render_last_hypothesis_and_feedback(experiment=last_experiment, feedback=last_feedback)
             if last_experiment is not None
             else "No previous hypothesis and feedback available since it's the first round."
         )
 
         sota_hypothesis_and_feedback = (
-            T("scenarios.qlib.prompts:sota_hypothesis_and_feedback").r(
-                experiment=sota_experiment, feedback=sota_feedback
-            )
+            render_sota_hypothesis_and_feedback(experiment=sota_experiment, feedback=sota_feedback)
             if sota_experiment is not None
             else "No SOTA hypothesis and feedback available since previous experiments were not accepted."
         )

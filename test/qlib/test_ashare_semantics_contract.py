@@ -111,6 +111,10 @@ from rdagent.scenarios.qlib.ashare_semantics import (
     QLIB_ASHARE_SUPPORTED_MODEL_TYPES,
     QLIB_ASHARE_TEMPLATE_BENCHMARK,
     QLIB_ASHARE_TEMPLATE_MARKET,
+    QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE,
+    QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS,
+    QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE,
+    QLIB_ASHARE_TRACE_PROMPT_RESULT_RULE,
     QLIB_ASHARE_TURNOVER_INPUT_BOUNDARY_RULE,
     QLIB_ASHARE_TURNOVER_REPORT_METRIC_RULE,
     QLIB_ASHARE_UI_SELECTED_METRICS,
@@ -510,6 +514,7 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "portfolio_metric_authority": "qlib.workflow.record_temp.PortAnaRecord",
         "risk_metric_authority": "qlib.contrib.evaluate.risk_analysis",
         "prompt_metric_paths": list(QLIB_ASHARE_PROMPT_METRIC_PATHS),
+        "trace_prompt_metric_paths": list(QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS),
         "feedback_metric_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS),
         "feedback_comparison_metric_paths": list(QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS),
         "model_feedback_prompt_metric_paths": list(QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS),
@@ -527,6 +532,9 @@ def _feedback_metric_semantics() -> dict[str, Any]:
         "feedback_comparison_result_rule": QLIB_ASHARE_FEEDBACK_COMPARISON_RESULT_RULE,
         "feedback_comparison_missing_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE,
         "feedback_comparison_invalid_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE,
+        "trace_prompt_result_rule": QLIB_ASHARE_TRACE_PROMPT_RESULT_RULE,
+        "trace_prompt_missing_failure": QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE,
+        "trace_prompt_invalid_failure": QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE,
         "model_feedback_prompt_result_rule": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE,
         "model_feedback_prompt_missing_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE,
         "model_feedback_prompt_invalid_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE,
@@ -774,6 +782,7 @@ def _valid_contract() -> dict[str, Any]:
                 "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
                 "bypass_feedback_primary_metric_with_llm_feedback_decision",
                 "emit_partial_feedback_metric_comparison_or_use_non_qlib_metric_rows",
+                "render_trace_prompt_with_raw_result_frame_or_inline_metric_slice",
                 "render_model_feedback_prompt_with_raw_result_frame_or_partial_metric_slice",
                 "redefine_benchmark_return_series_or_default_benchmark",
                 "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
@@ -1380,6 +1389,7 @@ def test_rd_agent_context_does_not_redefine_qlib_ashare_runtime_semantics() -> N
     assert (
         "emit_partial_feedback_metric_comparison_or_use_non_qlib_metric_rows" in boundary["rdagent_forbidden_actions"]
     )
+    assert "render_trace_prompt_with_raw_result_frame_or_inline_metric_slice" in boundary["rdagent_forbidden_actions"]
     assert (
         "render_model_feedback_prompt_with_raw_result_frame_or_partial_metric_slice"
         in boundary["rdagent_forbidden_actions"]
@@ -1662,6 +1672,7 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
         *portfolio["rdagent_bandit_metric_paths"],
     ]
     assert list(QLIB_ASHARE_PROMPT_METRIC_PATHS) == feedback["prompt_metric_paths"]
+    assert list(QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS) == feedback["trace_prompt_metric_paths"]
     assert list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS) == feedback["feedback_metric_paths"]
     assert list(QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS) == feedback["feedback_comparison_metric_paths"]
     assert list(QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS) == feedback["model_feedback_prompt_metric_paths"]
@@ -1678,6 +1689,9 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
     assert QLIB_ASHARE_FEEDBACK_COMPARISON_RESULT_RULE == feedback["feedback_comparison_result_rule"]
     assert QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE == feedback["feedback_comparison_missing_failure"]
     assert QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE == feedback["feedback_comparison_invalid_failure"]
+    assert QLIB_ASHARE_TRACE_PROMPT_RESULT_RULE == feedback["trace_prompt_result_rule"]
+    assert QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE == feedback["trace_prompt_missing_failure"]
+    assert QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE == feedback["trace_prompt_invalid_failure"]
     assert QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE == feedback["model_feedback_prompt_result_rule"]
     assert QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE == feedback["model_feedback_prompt_missing_failure"]
     assert QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE == feedback["model_feedback_prompt_invalid_failure"]
@@ -1723,8 +1737,11 @@ def test_rd_agent_metric_path_constants_match_qlib_contract() -> None:
 
 
 def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> None:
+    ashare_semantics_source = (REPO_ROOT / "rdagent/scenarios/qlib/ashare_semantics.py").read_text()
     bandit_source = (REPO_ROOT / "rdagent/scenarios/qlib/proposal/bandit.py").read_text()
     feedback_source = (REPO_ROOT / "rdagent/scenarios/qlib/developer/feedback.py").read_text()
+    result_projection_source = (REPO_ROOT / "rdagent/scenarios/qlib/result_projection.py").read_text()
+    trace_prompt_source = (REPO_ROOT / "rdagent/scenarios/qlib/trace_prompt.py").read_text()
     ui_source = (REPO_ROOT / "rdagent/log/ui/app.py").read_text()
     prompts_source = (REPO_ROOT / "rdagent/scenarios/qlib/prompts.yaml").read_text()
 
@@ -1757,8 +1774,14 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert "QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE" in feedback_source
     assert "QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE" in feedback_source
     assert "combined_df.loc[IMPORTANT_METRICS]" not in feedback_source
-    assert "QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS" in feedback_source
+    assert "QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS" in result_projection_source
     assert "format_model_feedback_result_for_prompt" in feedback_source
+    assert "QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS" in result_projection_source
+    assert "format_trace_result_for_prompt" in result_projection_source
+    assert "render_hypothesis_and_feedback" in trace_prompt_source
+    assert "qlib_ashare_trace_prompt_results" in trace_prompt_source
+    assert "experiment.result.loc[" not in prompts_source
+    assert "qlib_ashare_trace_prompt_result" in prompts_source
     assert ".result.loc[IMPORTANT_METRICS]" not in feedback_source
     assert "QLIB_ASHARE_BANDIT_DERIVED_UTILITY_NAME" in bandit_source
     assert "drawdown_adjusted_return" in bandit_source
@@ -1769,7 +1792,7 @@ def test_rd_agent_metric_consumers_use_qlib_contract_metric_path_constants() -> 
     assert QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC in prompts_source
     assert "QLIB_SELECTED_METRICS = list(QLIB_ASHARE_UI_SELECTED_METRICS)" in ui_source
     for path in QLIB_ASHARE_PROMPT_METRIC_PATHS:
-        assert path in prompts_source
+        assert path in ashare_semantics_source
     assert all(path == path.strip() for path in QLIB_ASHARE_BANDIT_METRIC_PATHS)
 
 
@@ -1779,6 +1802,16 @@ def _feedback_result(primary_metric_value: Any = 0.02) -> dict[str, dict[str, An
             "IC": 0.03,
             QLIB_ASHARE_FEEDBACK_PRIMARY_METRIC: primary_metric_value,
             "1day.excess_return_with_cost.max_drawdown": -0.1,
+        }
+    }
+
+
+def _trace_prompt_result(annualized_return: Any = 0.04) -> dict[str, dict[str, Any]]:
+    return {
+        "0": {
+            "IC": 0.03,
+            "1day.excess_return_without_cost.annualized_return": annualized_return,
+            "1day.excess_return_without_cost.max_drawdown": -0.08,
         }
     }
 
@@ -1925,8 +1958,66 @@ def test_rd_agent_feedback_comparison_fails_closed_on_ambiguous_metric_value() -
         )
 
 
+def test_rd_agent_trace_prompt_result_projects_qlib_declared_metric_paths() -> None:
+    from rdagent.scenarios.qlib.result_projection import format_trace_result_for_prompt
+
+    projection = format_trace_result_for_prompt(_trace_prompt_result(0.04))
+
+    for metric_path in QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS:
+        assert f"{metric_path}:" in projection
+    assert "1day.excess_return_without_cost.annualized_return: 0.040000" in projection
+    assert "1day.excess_return_with_cost" not in projection
+    assert "ICIR" not in projection
+
+
+def test_rd_agent_trace_prompt_result_fails_closed_without_metric_path() -> None:
+    from rdagent.scenarios.qlib.result_projection import format_trace_result_for_prompt
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE):
+        format_trace_result_for_prompt({"0": {"IC": 0.03}})
+
+
+def test_rd_agent_trace_prompt_result_fails_closed_on_invalid_metric_value() -> None:
+    from rdagent.scenarios.qlib.result_projection import format_trace_result_for_prompt
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE):
+        format_trace_result_for_prompt(_trace_prompt_result(float("nan")))
+
+
+def test_rd_agent_trace_prompt_result_fails_closed_on_ambiguous_metric_value() -> None:
+    from rdagent.scenarios.qlib.result_projection import format_trace_result_for_prompt
+
+    with pytest.raises(QlibAshareSemanticContractError, match=QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE):
+        format_trace_result_for_prompt(
+            {
+                "0": _trace_prompt_result(0.04)["0"],
+                "1": _trace_prompt_result(0.05)["0"],
+            }
+        )
+
+
+def test_rd_agent_trace_prompt_rendering_uses_preprojected_metric_strings() -> None:
+    from rdagent.scenarios.qlib.trace_prompt import render_hypothesis_and_feedback
+
+    experiment = types.SimpleNamespace(
+        hypothesis="test hypothesis",
+        sub_tasks=[],
+        result=_trace_prompt_result(0.04),
+    )
+    feedback = types.SimpleNamespace(
+        observations="observed",
+        hypothesis_evaluation="supported",
+        decision=True,
+    )
+    rendered = render_hypothesis_and_feedback(types.SimpleNamespace(hist=[(experiment, feedback)]))
+
+    assert "1day.excess_return_without_cost.annualized_return: 0.040000" in rendered
+    assert "experiment.result.loc" not in rendered
+    assert "1day.excess_return_with_cost" not in rendered
+
+
 def test_rd_agent_model_feedback_prompt_result_projects_qlib_declared_metric_paths() -> None:
-    from rdagent.scenarios.qlib.developer.feedback import (
+    from rdagent.scenarios.qlib.result_projection import (
         format_model_feedback_result_for_prompt,
     )
 
@@ -1939,7 +2030,7 @@ def test_rd_agent_model_feedback_prompt_result_projects_qlib_declared_metric_pat
 
 
 def test_rd_agent_model_feedback_prompt_result_keeps_execution_failure_as_result_state() -> None:
-    from rdagent.scenarios.qlib.developer.feedback import (
+    from rdagent.scenarios.qlib.result_projection import (
         format_model_feedback_result_for_prompt,
     )
 
@@ -1947,7 +2038,7 @@ def test_rd_agent_model_feedback_prompt_result_keeps_execution_failure_as_result
 
 
 def test_rd_agent_model_feedback_prompt_result_fails_closed_without_metric_path() -> None:
-    from rdagent.scenarios.qlib.developer.feedback import (
+    from rdagent.scenarios.qlib.result_projection import (
         format_model_feedback_result_for_prompt,
     )
 
@@ -1956,7 +2047,7 @@ def test_rd_agent_model_feedback_prompt_result_fails_closed_without_metric_path(
 
 
 def test_rd_agent_model_feedback_prompt_result_fails_closed_on_invalid_metric_value() -> None:
-    from rdagent.scenarios.qlib.developer.feedback import (
+    from rdagent.scenarios.qlib.result_projection import (
         format_model_feedback_result_for_prompt,
     )
 
@@ -1965,7 +2056,7 @@ def test_rd_agent_model_feedback_prompt_result_fails_closed_on_invalid_metric_va
 
 
 def test_rd_agent_model_feedback_prompt_result_fails_closed_on_ambiguous_metric_value() -> None:
-    from rdagent.scenarios.qlib.developer.feedback import (
+    from rdagent.scenarios.qlib.result_projection import (
         format_model_feedback_result_for_prompt,
     )
 
@@ -4021,6 +4112,37 @@ def test_malformed_qlib_prompt_projection_with_mutable_feedback_comparison_failu
     contract["prompt_projection_payload"]["feedback_metric_semantics"][
         "feedback_comparison_missing_failure"
     ] = "missing_feedback_metric_path_allows_partial_comparison"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_trace_prompt_paths_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"]["trace_prompt_metric_paths"] = [
+        "IC",
+        "ICIR",
+    ]
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_trace_prompt_rule_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "trace_prompt_result_rule"
+    ] = "trace_prompts_may_render_raw_result_frames"
+
+    with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
+        build_rd_agent_ashare_semantic_context(contract)
+
+
+def test_malformed_qlib_prompt_projection_with_mutable_trace_prompt_failure_fails_closed() -> None:
+    contract = _valid_contract()
+    contract["prompt_projection_payload"]["feedback_metric_semantics"][
+        "trace_prompt_missing_failure"
+    ] = "missing_trace_prompt_metric_path_allows_partial_prompt_projection"
 
     with pytest.raises(QlibAshareSemanticContractError, match="feedback_metric_semantics"):
         build_rd_agent_ashare_semantic_context(contract)
