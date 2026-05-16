@@ -2,6 +2,7 @@ hypothesis_and_feedback: |-
   =========================================================
   {% for experiment, feedback in trace.hist %}
   # Trial {{ loop.index }}: 
+  {% set qlib_ashare_result = qlib_ashare_trace_prompt_results[loop.index0] %}
   ## Hypothesis
   {{ experiment.hypothesis }}
   ## Specific task: 
@@ -11,8 +12,8 @@ hypothesis_and_feedback: |-
   {% endif %}
   {% endfor %}
   ## Backtest Analysis and Feedback:
-  {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% if qlib_ashare_result %}
+  Backtest Result: {{ qlib_ashare_result }}
   {% endif %}
   Observation: {{ feedback.observations }}
   Hypothesis Evaluation: {{ feedback.hypothesis_evaluation }}
@@ -30,8 +31,8 @@ last_hypothesis_and_feedback: |-
   {% endif %}
   {% endfor %}
   ## Backtest Analysis and Feedback:
-  {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% if qlib_ashare_trace_prompt_result %}
+  Backtest Result: {{ qlib_ashare_trace_prompt_result }}
   {% endif %}
   Training Log: 
   Here, you need to focus on analyzing whether there are any issues with the training. If any problems are identified, you must correct them in the next iteration and clearly describe how the changes will be made in the hypothesis.
@@ -52,8 +53,8 @@ sota_hypothesis_and_feedback: |-
   {% endif %}
   {% endfor %}
   ## Backtest Analysis and Feedback:
-  {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% if qlib_ashare_trace_prompt_result %}
+  Backtest Result: {{ qlib_ashare_trace_prompt_result }}
   {% endif %}
   Training Log: {{ experiment.stdout }}
   Observation: {{ feedback.observations }}

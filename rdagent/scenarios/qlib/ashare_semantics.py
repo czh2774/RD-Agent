@@ -171,6 +171,7 @@ QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS = (
 )
 QLIB_ASHARE_PORTFOLIO_UI_METRIC_PATHS = QLIB_ASHARE_PORTFOLIO_BANDIT_METRIC_PATHS
 QLIB_ASHARE_PROMPT_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_PROMPT_METRIC_PATHS)
+QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS = QLIB_ASHARE_PROMPT_METRIC_PATHS
 QLIB_ASHARE_FEEDBACK_METRIC_PATHS = ("IC", *QLIB_ASHARE_PORTFOLIO_FEEDBACK_METRIC_PATHS)
 QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS = QLIB_ASHARE_FEEDBACK_METRIC_PATHS
 QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS = QLIB_ASHARE_FEEDBACK_METRIC_PATHS
@@ -201,6 +202,15 @@ QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE = (
 )
 QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE = (
     "non_numeric_or_non_finite_feedback_comparison_metric_fails_closed_without_partial_comparison"
+)
+QLIB_ASHARE_TRACE_PROMPT_RESULT_RULE = (
+    "trace_prompts_must_project_exact_qlib_prompt_metric_paths_before_template_rendering"
+)
+QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE = (
+    "missing_trace_prompt_metric_path_fails_closed_without_partial_prompt_projection"
+)
+QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE = (
+    "non_numeric_or_non_finite_trace_prompt_metric_fails_closed_without_partial_prompt_projection"
 )
 QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE = (
     "model_feedback_prompts_must_project_exact_qlib_feedback_metric_paths_before_prompt_rendering"
@@ -652,6 +662,11 @@ def format_rd_agent_ashare_semantic_context(
             f"{feedback_metric.get('feedback_comparison_invalid_failure')}",
             "- feedback-metric comparison paths: "
             + ", ".join(str(item) for item in feedback_metric.get("feedback_comparison_metric_paths", [])),
+            "- feedback-metric trace prompt result rule: " f"{feedback_metric.get('trace_prompt_result_rule')}",
+            "- feedback-metric trace prompt missing failure: " f"{feedback_metric.get('trace_prompt_missing_failure')}",
+            "- feedback-metric trace prompt invalid failure: " f"{feedback_metric.get('trace_prompt_invalid_failure')}",
+            "- feedback-metric trace prompt paths: "
+            + ", ".join(str(item) for item in feedback_metric.get("trace_prompt_metric_paths", [])),
             "- feedback-metric model prompt result rule: "
             f"{feedback_metric.get('model_feedback_prompt_result_rule')}",
             "- feedback-metric model prompt missing failure: "
@@ -883,6 +898,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "redefine_feedback_metric_paths_or_label_derived_utility_as_qlib_metric",
         "bypass_feedback_primary_metric_with_llm_feedback_decision",
         "emit_partial_feedback_metric_comparison_or_use_non_qlib_metric_rows",
+        "render_trace_prompt_with_raw_result_frame_or_inline_metric_slice",
         "render_model_feedback_prompt_with_raw_result_frame_or_partial_metric_slice",
         "redefine_benchmark_return_series_or_default_benchmark",
         "redefine_universe_benchmark_template_binding_or_cross_alias_market_and_benchmark",
@@ -2084,6 +2100,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "portfolio_metric_authority",
         "risk_metric_authority",
         "prompt_metric_paths",
+        "trace_prompt_metric_paths",
         "feedback_metric_paths",
         "feedback_comparison_metric_paths",
         "model_feedback_prompt_metric_paths",
@@ -2101,6 +2118,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_comparison_result_rule",
         "feedback_comparison_missing_failure",
         "feedback_comparison_invalid_failure",
+        "trace_prompt_result_rule",
+        "trace_prompt_missing_failure",
+        "trace_prompt_invalid_failure",
         "model_feedback_prompt_result_rule",
         "model_feedback_prompt_missing_failure",
         "model_feedback_prompt_invalid_failure",
@@ -2137,6 +2157,7 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "portfolio_metric_authority": "qlib.workflow.record_temp.PortAnaRecord",
         "risk_metric_authority": "qlib.contrib.evaluate.risk_analysis",
         "prompt_metric_paths": list(QLIB_ASHARE_PROMPT_METRIC_PATHS),
+        "trace_prompt_metric_paths": list(QLIB_ASHARE_TRACE_PROMPT_METRIC_PATHS),
         "feedback_metric_paths": list(QLIB_ASHARE_FEEDBACK_METRIC_PATHS),
         "feedback_comparison_metric_paths": list(QLIB_ASHARE_FEEDBACK_COMPARISON_METRIC_PATHS),
         "model_feedback_prompt_metric_paths": list(QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_METRIC_PATHS),
@@ -2154,6 +2175,9 @@ def _validate_qlib_ashare_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "feedback_comparison_result_rule": QLIB_ASHARE_FEEDBACK_COMPARISON_RESULT_RULE,
         "feedback_comparison_missing_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_MISSING_FAILURE,
         "feedback_comparison_invalid_failure": QLIB_ASHARE_FEEDBACK_COMPARISON_INVALID_FAILURE,
+        "trace_prompt_result_rule": QLIB_ASHARE_TRACE_PROMPT_RESULT_RULE,
+        "trace_prompt_missing_failure": QLIB_ASHARE_TRACE_PROMPT_MISSING_FAILURE,
+        "trace_prompt_invalid_failure": QLIB_ASHARE_TRACE_PROMPT_INVALID_FAILURE,
         "model_feedback_prompt_result_rule": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_RESULT_RULE,
         "model_feedback_prompt_missing_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_MISSING_FAILURE,
         "model_feedback_prompt_invalid_failure": QLIB_ASHARE_MODEL_FEEDBACK_PROMPT_INVALID_FAILURE,
